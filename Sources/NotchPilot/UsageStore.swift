@@ -18,6 +18,11 @@ final class UsageStore: ObservableObject {
     /// Set when a Start-Window ping fails, so the panel can say so instead of
     /// silently reverting to the Start button.
     @Published private(set) var startError: String?
+    /// True once we've held a good reading and are now riding out a brief failure.
+    @Published private(set) var reconnecting = false
+    /// False until the very first poll resolves, so we can show "checking" rather
+    /// than a scary "offline" on launch.
+    @Published private(set) var loadedOnce = false
 
     private let service = UsageService()
     private var pollTask: Task<Void, Never>?
@@ -26,20 +31,29 @@ final class UsageStore: ObservableObject {
     /// Single-flight guard: skip a tick if the previous poll is still running, so
     /// a slow path (e.g. a pending first-run Keychain dialog) can't stack polls.
     private var isPolling = false
+    /// Last healthy reading, kept so a transient failure can hold real (if slightly
+    /// stale) data instead of blanking to offline.
+    private var lastGood: UsageSnapshot?
+    private var failureStreak = 0
 
-    /// How often to re-check usage. Utilization moves slowly, so 60s is plenty.
+    /// How often to re-check usage when healthy. Utilization moves slowly.
     private let pollInterval: Duration = .seconds(60)
 
     // MARK: Lifecycle
 
     func start() {
         pollTask?.cancel()   // idempotent: never leak a previous loop
-        poll()
-        let interval = pollInterval
         pollTask = Task { [weak self] in
+            guard let self else { return }
             while !Task.isCancelled {
-                try? await Task.sleep(for: interval)
-                self?.poll()
+                let healthy = await self.refresh()
+                // Heal fast: back off 4 → 8 → 16 → 32 → 60s on consecutive
+                // failures rather than waiting a full interval, so a transient
+                // blip recovers in seconds. Steady cadence once healthy.
+                let delay: Duration = healthy
+                    ? self.pollInterval
+                    : .seconds(min(60, 4 << min(max(self.failureStreak - 1, 0), 4)))
+                try? await Task.sleep(for: delay)
             }
         }
     }
@@ -49,22 +63,49 @@ final class UsageStore: ObservableObject {
         wakeTask?.cancel(); wakeTask = nil
     }
 
-    /// One-shot refresh (also used after starting a window). Guarded so an
-    /// in-flight poll is never doubled.
+    /// Manual one-shot refresh (used after starting a window). Guarded so an
+    /// in-flight refresh is never doubled.
     func poll() {
         guard !isPolling else { return }
         isPolling = true
         Task { [weak self] in
             guard let self else { return }
             defer { self.isPolling = false }
-            let next = await self.service.currentState()
-            self.apply(next)
+            await self.refresh()
         }
     }
 
-    private func apply(_ next: ConnectionState) {
-        state = next
-        if !isWaking { mascot = Self.mascotState(for: next) }
+    @discardableResult
+    private func refresh() async -> Bool {
+        let next = await service.currentState()
+        return apply(next)
+    }
+
+    /// Folds a fresh result into published state and returns whether it was healthy.
+    /// Holds the last good reading through up to 3 brief failures (real data, just
+    /// seconds old) so one network blip doesn't blank to the offline screen.
+    @discardableResult
+    private func apply(_ next: ConnectionState) -> Bool {
+        loadedOnce = true
+        if case .ok(let snap) = next {
+            lastGood = snap
+            failureStreak = 0
+            reconnecting = false
+            state = next
+            if !isWaking { mascot = Self.mascotState(for: state) }
+            return true
+        }
+
+        failureStreak += 1
+        if let good = lastGood, failureStreak <= 3 {
+            reconnecting = true
+            state = .ok(good)          // keep real, slightly-stale data
+        } else {
+            reconnecting = false
+            state = next               // honest needsAuth / offline / noBinary
+        }
+        if !isWaking { mascot = Self.mascotState(for: state) }
+        return false
     }
 
     // MARK: Start-window flow (two-tap confirm, no jarring modal)
@@ -139,6 +180,7 @@ final class UsageStore: ObservableObject {
     var hasOpenWindow: Bool { snapshot?.sessionHasUsage ?? false }
 
     var collapsedLabel: String {
+        if !loadedOnce { return "…" }   // first poll still in flight
         switch state {
         case .ok(let s):            return "\(s.sessionPercent)%"
         case .needsAuth, .noBinary: return "sign in"
@@ -157,6 +199,7 @@ final class UsageStore: ObservableObject {
     }
 
     var statusText: String {
+        if !loadedOnce { return "Checking usage…" }
         switch state {
         case .needsAuth: return "Open Claude Code to sign in"
         case .noBinary:  return "Keychain unavailable"

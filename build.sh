@@ -24,6 +24,8 @@ mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/Resources"
 mv "${APP_NAME}" "${APP}/Contents/MacOS/${APP_NAME}"
 cp "${PLIST}" "${APP}/Contents/Info.plist"
 printf 'APPL????' > "${APP}/Contents/PkgInfo"
+# bundle resources (the mascot HTML/SVG/GSAP) so Bundle.main can find them
+if [ -d Resources ]; then cp -R Resources/. "${APP}/Contents/Resources/"; fi
 plutil -lint "${APP}/Contents/Info.plist"
 
 # 3. ad-hoc codesign ("-" identity). SMAppService needs a valid signature.

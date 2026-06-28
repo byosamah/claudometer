@@ -215,10 +215,13 @@ final class NotchWindowController: NSWindowController {
     private func setExpanded(_ expanded: Bool) {
         guard state.isExpanded != expanded else { return }
         state.isExpanded = expanded
-        // Expand INSTANTLY so the hover/hit area reaches full size immediately and
-        // moving the pointer down into the panel can't race the resize and collapse.
-        // SwiftUI still crossfades the inner content for a soft feel. Collapse animates.
-        reposition(animated: !expanded)
+        // Resize the window INSTANTLY in BOTH directions. Animating the frame races
+        // the mouse-tracking area AND, on a fast hover-off/hover-on, an in-flight
+        // collapse animator fights the expand and strands the window half-size
+        // (content shows the expanded layout in a too-small window -> "S..." / "We..."
+        // truncation, "have to hover twice"). The window size and the SwiftUI content
+        // now always match; SwiftUI crossfades the content for softness.
+        reposition(animated: false)
     }
 
     private func reposition(animated: Bool) {
