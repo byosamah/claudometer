@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 /// Accessory-app entry point built WITHOUT Xcode/SwiftUI-App (a manual
 /// NSApplication). `.accessory` policy = no Dock icon, no menu bar, but the
@@ -19,7 +20,10 @@ enum NotchPilotMain {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notchController: NotchWindowController?
+    private var menuBar: MenuBarController?
     private let store = UsageStore()
+    private let settings = AppSettings()
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // belt-and-suspenders at runtime
@@ -33,9 +37,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Menu bar is now the always-on home for the mascot + usage %.
+        menuBar = MenuBarController(store: store, settings: settings)
+
+        // The notch HUD is now opt-in: shown only while pinNotch is true. The
+        // @Published publisher replays the current value on subscribe, so this
+        // both sets the initial visibility (hidden by default) and reacts to the
+        // toggle live.
         let controller = NotchWindowController(store: store)
-        controller.show()
         notchController = controller   // retain, or it deallocates immediately
+        settings.$pinNotch
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] pinned in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if pinned { self.notchController?.show() } else { self.notchController?.hide() }
+                }
+            }
+            .store(in: &cancellables)
 
         store.start()
     }

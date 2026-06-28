@@ -34,26 +34,17 @@ struct NotchRootView: View {
 
     private var cornerRadius: CGFloat { expanded ? 22 : 15 }
 
+    // Liquid Glass, clipped to the carved shape (expanded) or the pill (collapsed).
+    // Color.clear fills the ZStack; .glassEffect renders the glass behind it. No
+    // solid black fill, no rectangular shadow (the glass casts its own).
     @ViewBuilder
     private var background: some View {
         if expanded {
-            // Concave top corners so the panel reads as carved out of the screen
-            // around the notch (top edge sits flush at the notch's bottom line).
-            NotchCarveShape(notchWidth: notch.notchWidth)
-                .fill(Color.black.opacity(0.92))
-                .overlay(
-                    NotchCarveShape(notchWidth: notch.notchWidth)
-                        .stroke(store.accentColor.opacity(0.45), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.35), radius: 9, y: 4)
+            Color.clear
+                .glassEffect(.regular, in: NotchCarveShape(notchWidth: notch.notchWidth))
         } else {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.92))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(store.accentColor.opacity(0.45), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.35), radius: 9, y: 4)
+            Color.clear
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
 
@@ -62,26 +53,15 @@ struct NotchRootView: View {
     @ViewBuilder
     private var content: some View {
         if expanded {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 10) {
                 if case .ok = store.state {
-                    Text(store.sessionLine)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .lineLimit(1).minimumScaleFactor(0.8)
-
-                    if !store.weeklyLine.isEmpty {
-                        Text(store.weeklyLine)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.62))
-                            .lineLimit(1).minimumScaleFactor(0.8)
-                    }
-
-                    Spacer(minLength: 4)
+                    notchMeter("Session", store.sessionPercent, store.sessionFraction, store.accentColor)
+                    notchMeter("Weekly", store.weeklyPercent, store.weeklyFraction, .secondary)
                     actionRow
                 } else {
                     Text(store.statusText)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.secondary)
                         .lineLimit(2).minimumScaleFactor(0.8)
                 }
             }
@@ -89,7 +69,25 @@ struct NotchRootView: View {
             Text(store.collapsedLabel)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
+        }
+    }
+
+    /// Compact meter for the carved notch panel (label + % + bar).
+    private func notchMeter(_ title: String, _ percent: Int, _ fraction: Double, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(percent)%")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+                    .contentTransition(.numericText())
+            }
+            UsageBar(fraction: fraction, color: color, height: 6)
         }
     }
 
@@ -100,15 +98,11 @@ struct NotchRootView: View {
         if store.isWaking {
             Label("Starting…", systemImage: "sparkles")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(.secondary)
         } else if store.hasOpenWindow {
             Label("Window active", systemImage: "circle.fill")
                 .font(.system(size: 10.5, weight: .medium, design: .rounded))
                 .foregroundStyle(store.accentColor)
-        } else if store.confirming {
-            pillButton("Confirm: open 5h window", fill: .severityDanger) {
-                store.confirmStart()
-            }
         } else {
             VStack(alignment: .leading, spacing: 3) {
                 if let err = store.startError {
@@ -116,23 +110,15 @@ struct NotchRootView: View {
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(Color.severityDanger)
                 }
-                pillButton("Start Window", fill: .severityCalm) {
-                    store.requestStart()
+                // One tap (the panel/notch is already a deliberate surface).
+                Button { store.confirmStart() } label: {
+                    Text("Start Window")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                 }
+                .buttonStyle(.glassProminent)
+                .tint(.mascotCoral)
             }
         }
-    }
-
-    private func pillButton(_ title: String, fill: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(fill))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
     }
 }
 

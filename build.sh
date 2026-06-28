@@ -12,8 +12,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
 # 1. compile all sources directly with swiftc (-parse-as-library because we use @main)
-echo ">> compiling ${APP_NAME} (swiftc, arm64, -O)"
+#    -target pins the deployment target to macOS 26 so the Liquid Glass APIs
+#    (.glassEffect, GlassEffectContainer, .buttonStyle(.glass)) resolve directly,
+#    with no availability fallbacks. LSMinimumSystemVersion is already 26.0.
+echo ">> compiling ${APP_NAME} (swiftc, arm64, -O, macOS 26 target)"
 swiftc -O -parse-as-library \
+    -target arm64-apple-macos26.0 \
     "${SRC_DIR}"/*.swift \
     -o "${APP_NAME}"
 

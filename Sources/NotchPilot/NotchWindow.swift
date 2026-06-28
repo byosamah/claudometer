@@ -244,8 +244,12 @@ final class NotchWindowController: NSWindowController {
     }
 
     @objc private func screenParametersChanged(_ note: Notification) {
-        // Re-pin to whatever screen now owns the notch (or fall back), and
-        // re-assert front in case the topology change dropped the ordering.
+        // Only re-assert a panel that is CURRENTLY shown. Visibility is owned by
+        // AppSettings.pinNotch (AppEntry drives show()/hide()); a display change
+        // (external monitor, resolution, wake-from-sleep) must NOT resurrect a
+        // hidden/unpinned HUD via orderFrontRegardless. isVisible is false after
+        // orderOut(nil) and true after show(), so pinned panels still re-pin.
+        guard window?.isVisible == true else { return }
         reposition(animated: false)
         window?.orderFrontRegardless()
     }

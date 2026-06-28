@@ -28,15 +28,40 @@ enum SessionStarter {
             process.currentDirectoryURL = home
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
+
+            // A login-item process inherits launchd's sparse PATH (/usr/bin:/bin:…),
+            // so an npm/Homebrew `claude` wrapper (#!/usr/bin/env node) can't find
+            // node and the ping fails. Augment PATH with the usual user/tool bins so
+            // the binary can resolve its own interpreter/tools regardless of install.
+            var env = ProcessInfo.processInfo.environment
+            let binDirs = [
+                home.appendingPathComponent(".local/bin").path,
+                "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
+            ]
+            env["PATH"] = binDirs.joined(separator: ":") + (env["PATH"].map { ":" + $0 } ?? "")
+            process.environment = env
+
             do { try process.run() } catch { return .launchError }
 
-            // Watchdog: reap a wedged ping so waitUntilExit() can never block forever.
-            let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
+            // Watchdog: SIGTERM at the deadline, then SIGKILL if it resists, so
+            // waitUntilExit() can NEVER block forever (and isWaking always clears).
+            // Record that WE killed it, so a genuine crash isn't mislabeled .timedOut.
+            let killed = TimeoutFlag()
+            let forceKill = DispatchWorkItem {
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            }
+            let watchdog = DispatchWorkItem {
+                if process.isRunning {
+                    killed.set()
+                    process.terminate()                                 // SIGTERM
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 2, execute: forceKill)
+                }
+            }
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
             process.waitUntilExit()
             watchdog.cancel()
 
-            if process.terminationReason == .uncaughtSignal { return .timedOut }
+            if killed.get() { return .timedOut }                        // our deadline fired
             return process.terminationStatus == 0 ? .ok : .failed(process.terminationStatus)
         }.value
     }
@@ -51,4 +76,13 @@ enum SessionStarter {
         ]
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
+}
+
+/// A tiny lock-guarded bool so the watchdog (on a global queue) can flag a kill
+/// that `waitUntilExit()` (on the detached task) then reads, without a data race.
+private final class TimeoutFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set() { lock.lock(); value = true; lock.unlock() }
+    func get() -> Bool { lock.lock(); defer { lock.unlock() }; return value }
 }

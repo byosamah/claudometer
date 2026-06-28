@@ -14,7 +14,6 @@ final class UsageStore: ObservableObject {
     @Published private(set) var state: ConnectionState = .offline
     @Published private(set) var mascot: MascotState = .dormant
     @Published private(set) var isWaking: Bool = false
-    @Published private(set) var confirming: Bool = false
     /// Set when a Start-Window ping fails, so the panel can say so instead of
     /// silently reverting to the Start button.
     @Published private(set) var startError: String?
@@ -26,7 +25,6 @@ final class UsageStore: ObservableObject {
 
     private let service = UsageService()
     private var pollTask: Task<Void, Never>?
-    private var confirmTask: Task<Void, Never>?
     private var wakeTask: Task<Void, Never>?
     /// Single-flight guard: skip a tick if the previous poll is still running, so
     /// a slow path (e.g. a pending first-run Keychain dialog) can't stack polls.
@@ -78,17 +76,19 @@ final class UsageStore: ObservableObject {
     /// Manual one-shot refresh (used after starting a window). Guarded so an
     /// in-flight refresh is never doubled.
     func poll() {
-        guard !isPolling else { return }
-        isPolling = true
-        Task { [weak self] in
-            guard let self else { return }
-            defer { self.isPolling = false }
-            await self.refresh()
-        }
+        Task { [weak self] in await self?.refresh() }
     }
 
+    /// The single-flight point for BOTH the periodic loop and the manual poll().
+    /// `isPolling` is set/cleared synchronously on the MainActor around the suspend,
+    /// so a concurrent caller (e.g. the post-Start poll landing on a loop tick)
+    /// bails instead of firing a second `/api/oauth/usage` request — which the
+    /// endpoint 429-rate-limits. Returns the current state when it skips.
     @discardableResult
     private func refresh() async -> ConnectionState {
+        if isPolling { return state }
+        isPolling = true
+        defer { isPolling = false }
         let next = await service.currentState()
         apply(next)
         return next
@@ -104,6 +104,10 @@ final class UsageStore: ObservableObject {
             failureStreak = 0
             reconnecting = false
             state = .ok(snap)
+            // A confirmed-open window clears any stale Start error, so an old
+            // "claude not found" / "timed out" can't resurface beside a fresh
+            // Start button after this window later ends.
+            if snap.sessionHasUsage { startError = nil }
             if !isWaking { mascot = Self.mascotState(for: state) }
             return
         }
@@ -126,25 +130,11 @@ final class UsageStore: ObservableObject {
         if !isWaking { mascot = Self.mascotState(for: state) }
     }
 
-    // MARK: Start-window flow (two-tap confirm, no jarring modal)
+    // MARK: Start-window flow (single tap from a deliberate panel/HUD)
 
-    /// First tap: arm the confirm. Auto-disarms after a few seconds.
-    func requestStart() {
-        startError = nil
-        confirming = true
-        confirmTask?.cancel()
-        confirmTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(4))
-            self?.confirming = false
-        }
-    }
-
-    /// Second tap: actually fire the ping and show the wakeup animation.
-    /// The ping is bounded by SessionStarter's watchdog, so `isWaking` always
-    /// clears even if `claude` hangs.
+    /// Fire the start ping and show the wakeup animation. The ping is bounded by
+    /// SessionStarter's watchdog, so `isWaking` always clears even if `claude` hangs.
     func confirmStart() {
-        confirmTask?.cancel()
-        confirming = false
         guard !isWaking else { return }
         isWaking = true
         startError = nil
@@ -181,7 +171,10 @@ final class UsageStore: ObservableObject {
             if snap.sessionSeverity == .warning || snap.sessionSeverity == .critical || snap.sessionPercent >= 85 {
                 return .frantic
             }
-            if snap.sessionPercent <= 0 { return .dormant }
+            // Use the raw-usage flag, not the rounded percent: a freshly opened
+            // window can sit below 0.5% (rounds to 0) yet is genuinely open, so
+            // the mascot should be alive, not dormant. Mirrors `hasOpenWindow`.
+            if !snap.sessionHasUsage { return .dormant }
             return .playing(intensity: min(1.0, Double(snap.sessionPercent) / 100.0))
         }
     }
@@ -207,6 +200,20 @@ final class UsageStore: ObservableObject {
         case .offline:              return lastGood == nil ? "…" : "offline"
         case .rateLimited:          return "…"
         }
+    }
+
+    // Render-ready values for the Liquid Glass panel's progress bars.
+    var sessionPercent: Int { snapshot?.sessionPercent ?? 0 }
+    var weeklyPercent: Int { snapshot?.weeklyPercent ?? 0 }
+    var sessionFraction: Double { Double(min(100, max(0, sessionPercent))) / 100 }
+    var weeklyFraction: Double { Double(min(100, max(0, weeklyPercent))) / 100 }
+    var sessionResetText: String {
+        guard let d = snapshot?.sessionResetsAt else { return "" }
+        return "Resets \(Self.countdown(d))"
+    }
+    var weeklyResetText: String {
+        guard let d = snapshot?.weeklyResetsAt else { return "" }
+        return "Resets \(Self.weekday(d))"
     }
 
     var sessionLine: String {
@@ -263,7 +270,6 @@ final class UsageStore: ObservableObject {
 
     deinit {
         pollTask?.cancel()
-        confirmTask?.cancel()
         wakeTask?.cancel()
     }
 }

@@ -4,12 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-NotchPilot is a menu-less macOS **accessory app** that pins a HUD at the MacBook
-**notch** showing live Claude **Max-plan** usage (session + weekly %), fronted by a
-code-drawn animated "Claude sparkle" mascot. A Start Window button opens a fresh
-5-hour usage window on demand.
+NotchPilot is a macOS **accessory app** (no Dock icon) that lives in the **menu
+bar** showing live Claude **Max-plan** usage (session + weekly %), fronted by a
+"Claude sparkle" mascot. Clicking the menu bar item opens a **Liquid Glass panel**
+(macOS 26 / Tahoe) with the meters, reset times, and a one-tap Start Window button.
+The original **notch HUD is now opt-in**: hidden by default, shown only when the
+user flips "Pin to notch" (the toggle lives in the panel footer and the
+right-click menu).
 
-Full design rationale: `docs/superpowers/specs/2026-06-28-notchpilot-design.md`.
+Design rationale:
+- Original: `docs/superpowers/specs/2026-06-28-notchpilot-design.md`.
+- Menu-bar-first + Liquid Glass redesign:
+  `docs/superpowers/specs/2026-06-28-notchpilot-liquid-glass-redesign-design.md`.
 
 ## Build / run (no Xcode, no SwiftPM)
 
@@ -29,15 +35,39 @@ swiftc -parse-as-library -typecheck Sources/NotchPilot/*.swift
 swiftc -parse-as-library -typecheck -swift-version 6 -strict-concurrency=complete Sources/NotchPilot/*.swift
 ```
 
-There are no tests. Verify changes by rebuilding, relaunching, and screenshotting
-the notch (`screencapture -x -R<x>,0,960,300 out.png`; the notch is top-center).
-Use `cliclick m:<x>,<y>` to drive hover for the expanded panel. Record the GSAP
-mascot's live motion with `screencapture -v -V <secs> -R <x,y,w,h> out.mov`.
+`build.sh` passes `-target arm64-apple-macos26.0` so the Liquid Glass APIs
+(`.glassEffect`, `GlassEffectContainer`, `.buttonStyle(.glass/.glassProminent)`)
+resolve directly with no availability fallbacks. `LSMinimumSystemVersion` is 26.0.
+
+There are no tests. Verify changes by rebuilding, relaunching, and screenshotting.
+The **menu bar item** is top-right (status area); reveal a hidden menu bar (a
+full-screen app auto-hides it) with `cliclick m:<x>,1` before capturing. Click the
+item with `cliclick c:<x>,11` to open the glass panel (it appears below, right of
+the item). The **notch HUD** only exists while pinned; it's top-center, hover it
+with `cliclick m:<notchCenterX>,<y≈50>` to expand. Record the GSAP mascot's live
+motion with `screencapture -v -V <secs> -R <x,y,w,h> out.mov`.
+
+Dev-loop gotcha: a sandboxed `pkill`/`open`/`screencapture` silently fails (the
+command sandbox blocks process control + screen capture), leaving a STALE instance
+running while `open` re-activates it — you screenshot the old build and chase
+ghosts. Run launch / kill / capture with the sandbox disabled, and verify the kill
+(`pgrep -f "MacOS/NotchPilot"`) before rebuilding.
+
 For runtime diagnostics, `NSLog`/`log show` was unreliable here; temporarily append
 to a file (`/tmp/notchpilot-debug.log`) and `cat` it for deterministic per-poll evidence.
 
 ## Hard toolchain constraints (these will bite you)
 
+- **Verify new Apple-SDK APIs by compiling a probe**, don't guess: CLT ships
+  SwiftUI as a binary `.swiftmodule` (no `.swiftinterface` to grep). A tiny
+  `swiftc -typecheck -target arm64-apple-macos26.0 probe.swift` confirmed the
+  Liquid Glass shapes (`GlassEffectContainer`,
+  `.glassEffect(.regular.tint(c).interactive(), in: .rect(cornerRadius:))`,
+  `.buttonStyle(.glass/.glassProminent)`).
+- **Observe a store/settings from a `@MainActor` AppKit controller** with
+  `pub.receive(on: DispatchQueue.main).sink { [weak self] _ in MainActor.assumeIsolated { self?.refresh() } }`
+  — compiles under strict concurrency, and the main-hop reads the post-change
+  value (`objectWillChange`/`@Published` fire just BEFORE the property updates).
 - **Never use `@State`.** The `SwiftUIMacros` plugin that implements it is NOT
   shipped with Command Line Tools, so any `@State` (or `@Observable`) fails the
   build with "plugin for module SwiftUIMacros not found". Use `@StateObject` +
@@ -51,11 +81,14 @@ to a file (`/tmp/notchpilot-debug.log`) and `cat` it for deterministic per-poll 
 
 ## Architecture (the data flow is the whole app)
 
-One-directional pipeline, all UI is `@MainActor`:
+One-directional pipeline, all UI is `@MainActor`. The data layer feeds two
+presentation surfaces (menu bar panel = primary, notch HUD = opt-in), both
+observing the same `UsageStore` + `AppSettings`:
 
 ```
-TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──> NotchRootView
-(/usr/bin/security)  (GET /api/oauth/usage)   (ObservableObject)   + MascotView
+TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> MenuBarController (NSStatusItem + glass NSPanel)
+(/usr/bin/security)  (GET /api/oauth/usage)  (ObservableObject) ├─> NotchWindowController (shown only when pinNotch)
+                                              AppSettings  ─────┘    both render UsagePanelView / MascotGlyph / MascotView
 ```
 
 - **`UsageModel.swift`** is the data layer (one file): `TokenProvider` reads the
@@ -64,23 +97,45 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
   ACL prompt). `UsageClient` GETs `https://api.anthropic.com/api/oauth/usage`
   with `Authorization: Bearer` + `anthropic-beta: oauth-2025-04-20`, decodes into
   `UsageSnapshot`. `UsageService` combines them into a `ConnectionState`
-  (`.ok` / `.needsAuth` / `.offline` / `.noBinary`).
-- **`UsageStore.swift`** polls `UsageService` every 60s, derives `MascotState`
-  from the snapshot, and exposes render-ready strings. The SwiftUI views observe
-  this single store.
-- **`NotchWindow.swift`** owns the AppKit side: a borderless non-activating
-  `NSPanel` pinned at the notch via `NSScreen` geometry, hosting the SwiftUI view.
-- **`NotchRootView.swift`** is the collapsed pill + hover-expanded panel. The expanded
-  background is a custom `NotchCarveShape` (flat top spanning the notch width, concave
-  flares to full width) fed by `notch.notchWidth` — NOT a RoundedRectangle; it reads
-  as carved out of the notch.
+  (`.ok` / `.needsAuth` / `.offline` / `.noBinary` / `.rateLimited`).
+- **`UsageStore.swift`** polls `UsageService` every 60s, derives `MascotState`,
+  and exposes render-ready values (strings + `sessionFraction`/`weeklyFraction`
+  for the meters). Single source of truth the SwiftUI surfaces observe.
+- **`AppSettings.swift`** — `UserDefaults`-backed `ObservableObject`: `pinNotch`
+  (default false = notch hidden) and `menuBarStyle`. The "stay or hide" toggle.
+- **`MenuBarController.swift`** owns the `NSStatusItem` (mood-tinted `MascotGlyph`
+  rendered to `NSImage` via `ImageRenderer`, `isTemplate = false` so it keeps the
+  coral instead of being template-tinted, + `%` title). Left-click toggles an anchored Liquid Glass
+  `NSPanel` (a `NotchPanel`, so its toggles can become key) hosting
+  `UsagePanelView`; it fades+drops in and dismisses on an outside click via a
+  global `NSEvent` monitor (the status button is excluded so it can toggle).
+  Right-click → AppKit menu (Pin to notch / Launch at Login / Quit).
+- **`UsagePanelView.swift`** — the redesigned Liquid Glass content shared by the
+  menu bar panel and the pinned-notch expanded state. `GlassEffectContainer` +
+  `.glassEffect(.regular, in:)`; meters via `UsageBar`; one-tap Start
+  (`.buttonStyle(.glassProminent)`); footer toggles bound to `AppSettings` /
+  `LoginItem`.
+- **`Theme.swift`** — glass layout constants + the `UsageBar` meter (faint track +
+  accent fill, spring-animated). Colors live in `MascotView.swift`.
+- **`MascotGlyph.swift`** — a crisp VECTOR sunburst (`Canvas`) for the menu bar,
+  mood-tinted. NOT the WKWebView (too heavy/blurry at status-item size); the live
+  GSAP mascot still plays in the panel + notch.
+- **`NotchWindow.swift`** owns the notch `NSPanel` (pinned via `NSScreen`
+  geometry). `AppEntry` shows/hides it by subscribing to `AppSettings.$pinNotch`.
+- **`NotchRootView.swift`** is the (pinned) collapsed pill + hover-expanded panel,
+  now Liquid Glass: `Color.clear.glassEffect(in: shape)` where shape is a rounded
+  rect (pill) or the custom `NotchCarveShape` (expanded; flat top at notch width,
+  concave flares to full width) — reads as carved out of the notch.
 - **`MascotView.swift`** hosts the real Claude sunburst mascot
-  (`Resources/mascot.html`, an SVG + vendored GSAP animation) in a transparent
-  WKWebView, driven by mood via `window.NotchMascot.setMood(name, intensity)`.
-  Keep it ONE persistent instance (it's the stable first child of the HStack in
-  `NotchRootView`, resized between pill/panel) so the always-visible pill never
-  flashes. `Resources/` is copied into the bundle by `build.sh`. Transparency needs
-  `webView.setValue(false, forKey: "drawsBackground")`.
+  (`Resources/mascot.html`, SVG + vendored GSAP) in a transparent WKWebView,
+  driven by `window.NotchMascot.setMood(name, intensity)` (moods: idle / playing /
+  frantic / wakeup / sleepy / offline). Transparency needs
+  `webView.setValue(false, forKey: "drawsBackground")`. `Resources/` is copied
+  into the bundle by `build.sh`. The motion logic is the 2nd `<script>` in
+  `mascot.html` (after vendored GSAP) as `moods.{name}(intensity)`; `killAll()`
+  already resets `rayUses`/`sparks`/eyes-x between moods, so each mood only
+  re-asserts what it animates. Moods are kept minimal ("calm & alive": subtle
+  breathe + faint glow + blink).
 - **`SessionStarter.swift`** spawns `claude -p "hi" --model haiku` (absolute path)
   to open a window. **`LoginItem.swift`** wraps `SMAppService.mainApp`.
 
@@ -93,8 +148,10 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
 - **`severity` drives the mascot mood** (`normal` / escalated). Trust the field;
   a `sessionPercent >= 85` backstop exists only as a safety net.
 - **`is_active` does NOT mean "5-hour window is open."** It means "currently the
-  binding limit." Detect an open window via `sessionPercent > 0`. The Start button
-  only shows when no window is open.
+  binding limit." Detect an open window via `sessionHasUsage` (any usage > 0), NOT
+  the rounded percent. The Start button only shows when no window is open, and it's
+  now **one tap** (`UsageStore.confirmStart()`); the old two-tap arm/confirm flow
+  was removed once Start lived in a deliberate panel/HUD.
 - **Reset timestamps have 6 fractional-second digits** (e.g.
   `...:00.220578+00:00`). Parse with `Date.ISO8601FormatStyle`, not
   `ISO8601DateFormatter` (which is brittle on no-fractional / 6-digit variants).
