@@ -10,3 +10,6 @@
 
 # tooling scratch
 /.playwright-mcp/
+
+# vercel link
+.vercel/

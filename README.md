@@ -8,7 +8,7 @@ A tiny accessory app that reads your own Claude Code login and shows your
 session + weekly limits as Liquid Glass meters, fronted by a coral sparkle
 mascot that gets frantic before you do.
 
-[Download](https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg) · [Website](https://claudometer.vercel.app)
+[Download](https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg) · [Website](https://claudometer-byosama.vercel.app)
 
 </div>
 

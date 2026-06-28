@@ -47,12 +47,14 @@ vercel login          # one-time
 vercel --prod
 ```
 
-When prompted for the project name, enter **claudometer** so the URL becomes
-`https://claudometer.vercel.app`.
+The project is named **claudometer**. Because `claudometer.vercel.app` is owned by
+an unrelated product, the live URL is the team-scoped
+**https://claudometer-byosama.vercel.app**, which is what the app's `feedURL`
+(`Sources/NotchPilot/UpdateChecker.swift`) points at. If you later add a custom
+domain, update that `feedURL`, rebuild, and re-cut the release.
 
-> If `claudometer.vercel.app` is taken, pick another name, then update the feed
-> URL the app checks: change `feedURL` in
-> `Sources/NotchPilot/UpdateChecker.swift`, rebuild, and re-cut the release.
+> Deployment protection is disabled on this project so the public can reach the
+> page. Re-run `vercel --prod` from `web/` to redeploy after changes.
 
 ## 4. Shipping an update later
 

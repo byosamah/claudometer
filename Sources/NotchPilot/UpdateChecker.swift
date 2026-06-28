@@ -29,8 +29,9 @@ final class UpdateChecker: ObservableObject {
     @Published private(set) var isChecking = false
 
     /// The feed lives on the landing-page host, on purpose a different origin
-    /// from the usage API.
-    private let feedURL = URL(string: "https://claudometer.vercel.app/updates.json")!
+    /// from the usage API. (claudometer.vercel.app is taken by an unrelated
+    /// product, so we use the team-scoped Vercel domain.)
+    private let feedURL = URL(string: "https://claudometer-byosama.vercel.app/updates.json")!
 
     /// Ephemeral + cache-off so a stale CDN copy never masks a fresh release.
     private let session: URLSession = {

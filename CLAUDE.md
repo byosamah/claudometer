@@ -16,9 +16,11 @@ when the user flips "Pin to notch" (the toggle lives in the panel footer and the
 right-click menu).
 
 It is built to be **shared**: `package.sh` produces a distributable `.dmg`, a
-zero-dependency `UpdateChecker` polls `claudometer.vercel.app/updates.json` for
-new builds, and `web/` is the static landing page (deploys to Vercel; `.dmg` is a
-GitHub Release asset). See `docs/RELEASING.md` for the ship steps.
+zero-dependency `UpdateChecker` polls `claudometer-byosama.vercel.app/updates.json`
+for new builds, and `web/` is the static landing page (live on Vercel; `.dmg` is a
+GitHub Release asset on `github.com/byosamah/claudometer`). See `docs/RELEASING.md`
+for the ship steps. (`claudometer.vercel.app` is an unrelated product, hence the
+team-scoped domain.)
 
 Design rationale:
 - Original: `docs/superpowers/specs/2026-06-28-notchpilot-design.md`.
