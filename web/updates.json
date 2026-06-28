@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "build": 1,
+  "downloadURL": "https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg",
+  "notes": "First public release of Claudometer.",
+  "minimumSystemVersion": "26.0"
+}

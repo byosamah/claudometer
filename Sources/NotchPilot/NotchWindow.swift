@@ -59,7 +59,7 @@ final class NotchHoverContainer: NSView {
         menu.addItem(.separator())
 
         let quit = NSMenuItem(
-            title: "Quit NotchPilot",
+            title: "Quit Claudometer",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: ""
         )

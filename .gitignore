@@ -1,7 +1,12 @@
 .DS_Store
 /.build
 /build
-*.xcuserstate
 
-/NotchPilot.app
-/NotchPilot
+# build + packaging artifacts
+/Claudometer.app
+/Claudometer
+/Claudometer.dmg
+/.dmg-build
+
+# tooling scratch
+/.playwright-mcp/

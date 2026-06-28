@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# build.sh - compile + assemble + ad-hoc sign NotchPilot.app (no Xcode required).
+# build.sh - compile + assemble + ad-hoc sign Claudometer.app (no Xcode required).
 # Toolchain: Swift 6.4 via Command Line Tools, direct swiftc (SwiftPM not used).
 set -euo pipefail
 
-APP_NAME="NotchPilot"
+APP_NAME="Claudometer"
 SRC_DIR="Sources/NotchPilot"
 PLIST="Info.plist"
 APP="${APP_NAME}.app"

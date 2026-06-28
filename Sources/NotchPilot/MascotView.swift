@@ -3,7 +3,7 @@ import WebKit
 
 // MARK: - Mood model
 
-/// The mascot's mood, driven by NotchPilot's usage/auth/network state.
+/// The mascot's mood, driven by Claudometer's usage/auth/network state.
 public enum MascotState: Equatable, Sendable {
     case dormant
     case playing(intensity: Double)   // 0...1, scales liveliness

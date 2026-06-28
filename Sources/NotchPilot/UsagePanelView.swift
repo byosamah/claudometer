@@ -6,12 +6,14 @@ import SwiftUI
 struct UsagePanelView: View {
     @EnvironmentObject private var store: UsageStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var updates: UpdateChecker
 
     var body: some View {
         GlassEffectContainer(spacing: 14) {
             VStack(alignment: .leading, spacing: 14) {
                 header
                 content
+                updateRow
                 Divider().opacity(0.5)
                 footer
             }
@@ -19,6 +21,29 @@ struct UsagePanelView: View {
             .frame(width: GlassTheme.panelWidth, alignment: .leading)
         }
         .glassEffect(.regular, in: .rect(cornerRadius: GlassTheme.panelCorner))
+    }
+
+    // MARK: Update banner (only when a newer build is published)
+
+    @ViewBuilder
+    private var updateRow: some View {
+        if updates.available {
+            Button {
+                updates.openDownload()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                    Text(updates.latestVersion.map { "Update available · v\($0)" } ?? "Update available")
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                    Spacer(minLength: 0)
+                    Text("Download")
+                        .font(.system(.caption2, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.glass)
+            .tint(.mascotCoral)
+        }
     }
 
     // MARK: Header — live mascot + identity
@@ -62,6 +87,8 @@ struct UsagePanelView: View {
                       color: .secondary)
             }
             actionArea
+        } else if store.needsOnboarding {
+            OnboardingView()
         } else {
             Text(store.statusText)
                 .font(.system(.subheadline, design: .rounded))

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#14110f"/>
+  <g transform="translate(4,4)">
+    <g stroke="#d97757" stroke-width="2" stroke-linecap="round">
+      <line x1="16.2" y1="12" x2="22" y2="12"/><line x1="15.64" y1="14.1" x2="20.66" y2="17"/>
+      <line x1="14.1" y1="15.64" x2="17" y2="20.66"/><line x1="12" y1="16.2" x2="12" y2="22"/>
+      <line x1="9.9" y1="15.64" x2="7" y2="20.66"/><line x1="8.36" y1="14.1" x2="3.34" y2="17"/>
+      <line x1="7.8" y1="12" x2="2" y2="12"/><line x1="8.36" y1="9.9" x2="3.34" y2="7"/>
+      <line x1="9.9" y1="8.36" x2="7" y2="3.34"/><line x1="12" y1="7.8" x2="12" y2="2"/>
+      <line x1="14.1" y1="8.36" x2="17" y2="3.34"/><line x1="15.64" y1="9.9" x2="20.66" y2="7"/>
+    </g>
+    <circle cx="12" cy="12" r="4.6" fill="#cc785c"/>
+    <circle cx="10.3" cy="11.5" r="0.9" fill="#1a0f0a"/>
+    <circle cx="13.7" cy="11.5" r="0.9" fill="#1a0f0a"/>
+  </g>
+</svg>

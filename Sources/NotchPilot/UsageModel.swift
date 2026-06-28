@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Connection State (the public surface this area returns)
 
-/// The four states the rest of NotchPilot renders from.
+/// The four states the rest of Claudometer renders from.
 enum ConnectionState: Sendable, Equatable {
     case ok(UsageSnapshot)
     case needsAuth        // 401, or no usable token in the Keychain

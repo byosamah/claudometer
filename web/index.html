@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script>document.documentElement.classList.add('js');</script>
+<title>Claudometer — your Claude usage, in the menu bar</title>
+<meta name="description" content="Claudometer is a tiny macOS menu-bar app that shows your own Claude Max usage as live session and weekly meters, fronted by a friendly sparkle. Free and open source." />
+<meta property="og:title" content="Claudometer — your Claude usage, in the menu bar" />
+<meta property="og:description" content="A live gauge for your Claude Max limits, right in the menu bar. The little sparkle gets frantic before you do." />
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="#14110f" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- Sunburst mark, reused for brand + chips -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="spark" viewBox="0 0 24 24">
+    <g stroke="#d97757" stroke-width="2" stroke-linecap="round">
+      <line x1="16.2" y1="12" x2="22" y2="12"/><line x1="15.64" y1="14.1" x2="20.66" y2="17"/>
+      <line x1="14.1" y1="15.64" x2="17" y2="20.66"/><line x1="12" y1="16.2" x2="12" y2="22"/>
+      <line x1="9.9" y1="15.64" x2="7" y2="20.66"/><line x1="8.36" y1="14.1" x2="3.34" y2="17"/>
+      <line x1="7.8" y1="12" x2="2" y2="12"/><line x1="8.36" y1="9.9" x2="3.34" y2="7"/>
+      <line x1="9.9" y1="8.36" x2="7" y2="3.34"/><line x1="12" y1="7.8" x2="12" y2="2"/>
+      <line x1="14.1" y1="8.36" x2="17" y2="3.34"/><line x1="15.64" y1="9.9" x2="20.66" y2="7"/>
+    </g>
+    <circle cx="12" cy="12" r="4.6" fill="#cc785c"/>
+    <circle cx="10.3" cy="11.5" r="0.9" fill="#1a0f0a"/>
+    <circle cx="13.7" cy="11.5" r="0.9" fill="#1a0f0a"/>
+  </symbol>
+</svg>
+
+<div class="aurora" aria-hidden="true"></div>
+
+<!-- ======================= NAV ======================= -->
+<nav class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><svg class="spark"><use href="#spark"/></svg> Claudometer</a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#connect">How it works</a>
+      <a href="#changelog">Changelog</a>
+      <a href="https://github.com/byosamah/claudometer">GitHub</a>
+      <a class="btn btn-primary nav-cta" href="https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg">Download</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ======================= HERO ======================= -->
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-copy">
+      <span class="eyebrow">Menu-bar app for Claude Max</span>
+      <h1>Know exactly how much <span class="accent">Claude</span> you have left.</h1>
+      <p class="lead">Claudometer reads your own Claude Code login and shows your session and weekly limits as live meters in the menu bar. The little sparkle gets frantic before you do.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17.4l-4.7-4.7 1.4-1.4 3.3 3.3V3h2zM5 19h14v2H5z"/></svg>
+          Download for macOS
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/byosamah/claudometer">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.36 1.09 2.94.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 015 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0012 2z"/></svg>
+          View source
+        </a>
+      </div>
+      <p class="req">Free &amp; open source <span class="dot"></span> macOS 26 (Tahoe) <span class="dot"></span> Apple Silicon</p>
+    </div>
+
+    <div class="hero-stage">
+      <div class="menubar-chip">
+        <svg class="spark"><use href="#spark"/></svg><span class="pct">16%</span>
+      </div>
+      <div class="panel glass" id="heroPanel">
+        <div class="panel-head">
+          <iframe class="mascot-frame" src="mascot.html" title="Claudometer mascot" scrolling="no" tabindex="-1"></iframe>
+          <div>
+            <div class="title">Claude</div>
+            <div class="sub">Max plan usage</div>
+          </div>
+        </div>
+
+        <div class="meter">
+          <div class="meter-top"><span class="label">Session</span><span class="val coral tabular" data-count="16">0%</span></div>
+          <div class="track"><div class="fill coral" data-fill="16"></div></div>
+          <div class="reset">Resets in 2h 54m</div>
+        </div>
+
+        <div class="meter">
+          <div class="meter-top"><span class="label">Weekly</span><span class="val tabular" data-count="7">0%</span></div>
+          <div class="track"><div class="fill dim" data-fill="7"></div></div>
+          <div class="reset">Resets Thu 5 AM</div>
+        </div>
+
+        <div class="window-active"><span class="pulse"></span> 5-hour window active</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ======================= MENU-BAR SHOWCASE ======================= -->
+<section class="band showcase">
+  <div class="wrap reveal">
+    <div class="fake-menubar">
+      <span class="me"><svg class="spark"><use href="#spark"/></svg><span class="pct">16%</span></span>
+      <span class="sysicon">􀙇</span><span class="sysicon">􀊥</span><span class="sysicon">􀋨</span><span class="sysicon">Sun 28 Jun&nbsp; 11:24 PM</span>
+    </div>
+    <p class="caption">It lives where you already look. No window to manage, no dock icon. Just a glance away, all day.</p>
+  </div>
+</section>
+
+<!-- ======================= FEATURES ======================= -->
+<section class="band" id="features">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow">What it does</span>
+      <h2>A gauge for your Claude limits.</h2>
+      <p>Server-side truth, fetched live from Anthropic. Not an estimate from local logs, the real numbers Claude uses to decide your limits.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature glass reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1118 0"/><path d="M12 12l4-2"/></svg></div>
+        <h3>Session &amp; weekly meters</h3>
+        <p>Your 5-hour session and 7-day window, side by side, with exact reset times so nothing sneaks up on you.</p>
+        <div class="mini-meters">
+          <div class="mini-row"><span>SES</span><span class="mini-track"><span class="mini-fill" data-fill="16" style="background:linear-gradient(90deg,var(--coral),var(--peach))"></span></span><span>16%</span></div>
+          <div class="mini-row"><span>WK&nbsp;</span><span class="mini-track"><span class="mini-fill" data-fill="7" style="background:rgba(255,255,255,0.4)"></span></span><span>7%</span></div>
+        </div>
+      </div>
+
+      <div class="feature glass reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6z"/></svg></div>
+        <h3>A sparkle with moods</h3>
+        <p>The mascot breathes when you're idle, plays while a window is open, and goes frantic as you near a limit. You feel your usage before you read it.</p>
+      </div>
+
+      <div class="feature glass reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 13H11l-1 9 8.5-11H12z"/></svg></div>
+        <h3>Start a window in one tap</h3>
+        <p>No open session? Tap Start Window and Claudometer fires a tiny ping to begin your 5-hour clock, no terminal required.</p>
+      </div>
+
+      <div class="feature glass reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></div>
+        <h3>Private by design</h3>
+        <p>Your token never leaves your Mac. Claudometer reads your local Claude login and talks only to Anthropic. Nothing is sent to us, ever.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= HOW TO CONNECT ======================= -->
+<section class="band" id="connect">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow">Connect your Claude</span>
+      <h2>Up and running in three steps.</h2>
+      <p>Claudometer shows <em>your</em> data by reading the same Claude Code login you already use. If you have Claude Code, you're basically done.</p>
+    </div>
+    <div class="steps">
+      <div class="step glass reveal">
+        <div class="num">STEP 01</div>
+        <h3>Install Claude Code</h3>
+        <p>The free CLI from Anthropic. Skip this if you already use it.</p>
+        <code class="cmd"><span class="prompt">$ </span>npm i -g @anthropic-ai/claude-code</code>
+      </div>
+      <div class="step glass reveal">
+        <div class="num">STEP 02</div>
+        <h3>Sign in once</h3>
+        <p>Run Claude Code and log in with your Claude account. That stores the login Claudometer reads.</p>
+        <code class="cmd"><span class="prompt">$ </span>claude</code>
+      </div>
+      <div class="step glass reveal">
+        <div class="num">STEP 03</div>
+        <h3>Open Claudometer</h3>
+        <p>Launch the app. Your sparkle appears in the menu bar with live usage. That's it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= PRIVACY ======================= -->
+<section class="band privacy">
+  <div class="wrap">
+    <div class="band-head reveal" style="margin-bottom:0">
+      <span class="eyebrow">Trust</span>
+      <h2>Your data stays yours.</h2>
+      <p>Claudometer is a read-only window onto your own usage. There is no account, no server of ours, and no telemetry.</p>
+    </div>
+    <div class="privacy-facts reveal">
+      <div class="fact glass">
+        <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <div><strong>Token never leaves your Mac</strong><span>It reads your local Claude Code credential and uses it only to call Anthropic's usage API.</span></div>
+      </div>
+      <div class="fact glass">
+        <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <div><strong>No telemetry, no account</strong><span>We never see your usage, your token, or that you installed it. There's nothing to sign up for.</span></div>
+      </div>
+      <div class="fact glass">
+        <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <div><strong>Open source</strong><span>Every line is on GitHub. Read exactly what it does before you trust it with anything.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= CHANGELOG ======================= -->
+<section class="band" id="changelog">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow">What's new</span>
+      <h2>Changelog</h2>
+      <p>Every release, straight from GitHub. The app tells you when a new one lands.</p>
+    </div>
+    <div class="changelog-list reveal" id="changelog-list">
+      <!-- Populated from the GitHub Releases API; static fallback below. -->
+      <div class="release glass">
+        <div class="release-top"><span class="tag">v1.0</span><span class="date">First release</span></div>
+        <div class="body">
+          The first public Claudometer.
+          <ul>
+            <li>Live session + weekly meters in the menu bar.</li>
+            <li>A coral sparkle mascot with moods.</li>
+            <li>One-tap Start Window and an opt-in notch HUD.</li>
+            <li>Built-in update checking.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= FAQ ======================= -->
+<section class="band">
+  <div class="wrap">
+    <div class="band-head reveal">
+      <span class="eyebrow">Questions</span>
+      <h2>Good to know.</h2>
+    </div>
+    <div class="faq-list reveal">
+      <details class="faq glass"><summary>Is it free?<svg class="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></summary><div class="ans">Yes. Claudometer is free and open source. You only need an active Claude Max plan to have usage worth watching.</div></details>
+      <details class="faq glass"><summary>Does it use up my Claude tokens?<svg class="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></summary><div class="ans">No. Reading your usage costs nothing. The optional Start Window button sends one tiny <code>haiku</code> ping to open a session, and that's the only time it touches your quota, only when you ask.</div></details>
+      <details class="faq glass"><summary>Why does it need macOS 26?<svg class="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></summary><div class="ans">The interface is built on Tahoe's Liquid Glass. That material only exists on macOS 26 and newer, on Apple Silicon.</div></details>
+      <details class="faq glass"><summary>Is my Claude data safe?<svg class="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></summary><div class="ans">Your token stays on your Mac and is used only to call Anthropic's own usage API. Claudometer has no server and collects nothing. The source is public so you can verify it.</div></details>
+      <details class="faq glass"><summary>How do updates work?<svg class="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></summary><div class="ans">The app checks for a newer version on launch and from its menu. When one is out, it shows "Update available" and links you here to download it.</div></details>
+      <details class="faq glass"><summary>The first launch shows a warning?<svg class="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></summary><div class="ans">During early access the build isn't notarized yet, so macOS asks you to confirm. Right-click the app and choose <code>Open</code> once, and you're set. Signed builds are coming.</div></details>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= FINAL CTA ======================= -->
+<section class="final">
+  <div class="wrap reveal">
+    <iframe class="mascot-frame" src="mascot.html" title="Claudometer mascot" scrolling="no" tabindex="-1"></iframe>
+    <h2>Put a sparkle in your menu bar.</h2>
+    <p>See your Claude limits at a glance, and never get blindsided by a wall again.</p>
+    <a class="btn btn-primary" href="https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.6l3.3-3.3 1.4 1.4L12 17.4l-4.7-4.7 1.4-1.4 3.3 3.3V3h2zM5 19h14v2H5z"/></svg>
+      Download for macOS
+    </a>
+    <p class="req" style="justify-content:center;margin-top:16px">Free &amp; open source <span class="dot"></span> macOS 26 <span class="dot"></span> Apple Silicon</p>
+  </div>
+</section>
+
+<!-- ======================= FOOTER ======================= -->
+<footer class="footer">
+  <div class="wrap">
+    <a class="brand" href="#top"><svg class="spark"><use href="#spark"/></svg> Claudometer</a>
+    <div class="footer-links">
+      <a href="#features">Features</a>
+      <a href="#connect">How it works</a>
+      <a href="#changelog">Changelog</a>
+      <a href="https://github.com/byosamah/claudometer">GitHub</a>
+    </div>
+    <p class="note">Not affiliated with Anthropic. Claude is a trademark of Anthropic. Made for the Claude Max community.</p>
+  </div>
+</footer>
+
+<script src="vendor/gsap.min.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

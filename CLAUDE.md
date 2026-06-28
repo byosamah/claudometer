@@ -4,18 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-NotchPilot is a macOS **accessory app** (no Dock icon) that lives in the **menu
-bar** showing live Claude **Max-plan** usage (session + weekly %), fronted by a
-"Claude sparkle" mascot. Clicking the menu bar item opens a **Liquid Glass panel**
-(macOS 26 / Tahoe) with the meters, reset times, and a one-tap Start Window button.
-The original **notch HUD is now opt-in**: hidden by default, shown only when the
-user flips "Pin to notch" (the toggle lives in the panel footer and the
+**Claudometer** (formerly NotchPilot; the Swift sources still live under
+`Sources/NotchPilot/`, the product/bundle/executable are Claudometer) is a macOS
+**accessory app** (no Dock icon) that lives in the **menu bar** showing live
+Claude **Max-plan** usage (session + weekly %), fronted by a "Claude sparkle"
+mascot. Clicking the menu bar item opens a **Liquid Glass panel** (macOS 26 /
+Tahoe) with the meters, reset times, and a one-tap Start Window button. When not
+connected it shows an **onboarding card** (`OnboardingView`) guiding install +
+sign-in. The original **notch HUD is now opt-in**: hidden by default, shown only
+when the user flips "Pin to notch" (the toggle lives in the panel footer and the
 right-click menu).
+
+It is built to be **shared**: `package.sh` produces a distributable `.dmg`, a
+zero-dependency `UpdateChecker` polls `claudometer.vercel.app/updates.json` for
+new builds, and `web/` is the static landing page (deploys to Vercel; `.dmg` is a
+GitHub Release asset). See `docs/RELEASING.md` for the ship steps.
 
 Design rationale:
 - Original: `docs/superpowers/specs/2026-06-28-notchpilot-design.md`.
 - Menu-bar-first + Liquid Glass redesign:
   `docs/superpowers/specs/2026-06-28-notchpilot-liquid-glass-redesign-design.md`.
+- Ship + landing page:
+  `docs/superpowers/specs/2026-06-28-claudometer-ship-and-landing-design.md`.
 
 ## Build / run (no Xcode, no SwiftPM)
 
@@ -24,9 +34,10 @@ unavailable, and **SwiftPM (`swift build`) is broken here** (its `swift-package`
 tool fails to launch). Build by compiling sources directly with `swiftc`.
 
 ```sh
-./build.sh                 # compile + assemble NotchPilot.app + ad-hoc codesign
-open NotchPilot.app        # launch (accessory app: no Dock icon, no window — look at the notch)
-pkill -f "MacOS/NotchPilot"  # stop the running instance before rebuilding
+./build.sh                 # compile + assemble Claudometer.app + ad-hoc codesign
+./package.sh               # build + wrap in Claudometer.dmg (env-gated signing/notarize)
+open Claudometer.app        # launch (accessory app: no Dock icon, no window — look at the menu bar)
+pkill -f "MacOS/Claudometer"  # stop the running instance before rebuilding
 
 # fast inner loop: typecheck the whole module without bundling
 swiftc -parse-as-library -typecheck Sources/NotchPilot/*.swift
@@ -34,6 +45,11 @@ swiftc -parse-as-library -typecheck Sources/NotchPilot/*.swift
 # strictest bar (what the code is held to):
 swiftc -parse-as-library -typecheck -swift-version 6 -strict-concurrency=complete Sources/NotchPilot/*.swift
 ```
+
+`package.sh` is ad-hoc (free, unsigned) by default; set `SIGN_IDENTITY` +
+`NOTARY_PROFILE` to Developer-ID codesign + notarize + staple the `.dmg`.
+The landing page lives in `web/` (static; `python3 -m http.server --directory web`
+to preview). hdiutil + screencapture + pkill need the **sandbox disabled**.
 
 `build.sh` passes `-target arm64-apple-macos26.0` so the Liquid Glass APIs
 (`.glassEffect`, `GlassEffectContainer`, `.buttonStyle(.glass/.glassProminent)`)

@@ -6,7 +6,7 @@ import Combine
 /// notch panel can still show and accept clicks. LSUIElement in Info.plist
 /// suppresses the Dock icon at launch (before this runs) to avoid a flash.
 @main
-enum NotchPilotMain {
+enum ClaudometerMain {
     @MainActor
     static func main() {
         let app = NSApplication.shared
@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private let store = UsageStore()
     private let settings = AppSettings()
+    private let updates = UpdateChecker()
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -33,12 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // their choice alone.
         if LoginItem.status == .notRegistered {
             if case .failure(let error) = LoginItem.enable() {
-                NSLog("NotchPilot: login-item registration failed: \(error)")
+                NSLog("Claudometer: login-item registration failed: \(error)")
             }
         }
 
         // Menu bar is now the always-on home for the mascot + usage %.
-        menuBar = MenuBarController(store: store, settings: settings)
+        menuBar = MenuBarController(store: store, settings: settings, updates: updates)
 
         // The notch HUD is now opt-in: shown only while pinNotch is true. The
         // @Published publisher replays the current value on subscribe, so this
@@ -57,6 +58,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         store.start()
+
+        // Best-effort update check at launch (silent on failure). The menu's
+        // "Check for Updates…" re-runs it on demand.
+        Task { await updates.check() }
     }
 
     // Accessory app with no standard window: stay alive regardless.

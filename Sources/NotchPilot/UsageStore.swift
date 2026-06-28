@@ -192,6 +192,19 @@ final class UsageStore: ObservableObject {
     /// "currently the binding limit," not "window open."
     var hasOpenWindow: Bool { snapshot?.sessionHasUsage ?? false }
 
+    /// Show the "connect your Claude" onboarding card when there is no usable
+    /// credential yet. `.needsAuth` covers both "no token in the Keychain" and a
+    /// 401; that is exactly the first-run, not-connected case. (`.noBinary` is a
+    /// rarer environment fault and keeps its own honest status line.)
+    var needsOnboarding: Bool {
+        if case .needsAuth = state { return true }
+        return false
+    }
+
+    /// Whether the Claude Code CLI is present on disk, so the onboarding card can
+    /// check off step 1. Reuses the same path probe the start-window flow uses.
+    var claudeInstalled: Bool { SessionStarter.claudePath() != nil }
+
     var collapsedLabel: String {
         if !loadedOnce { return "…" }   // first poll still in flight
         switch state {

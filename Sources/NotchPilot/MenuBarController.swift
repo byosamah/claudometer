@@ -15,6 +15,7 @@ final class MenuBarController: NSObject {
 
     private let store: UsageStore
     private let settings: AppSettings
+    private let updates: UpdateChecker
     private let statusItem: NSStatusItem
     private var cancellables = Set<AnyCancellable>()
 
@@ -23,9 +24,10 @@ final class MenuBarController: NSObject {
     private var clickMonitor: Any?   // clicks in OTHER apps' windows
     private var localMonitor: Any?   // clicks in OUR other windows (e.g. pinned notch)
 
-    init(store: UsageStore, settings: AppSettings) {
+    init(store: UsageStore, settings: AppSettings, updates: UpdateChecker) {
         self.store = store
         self.settings = settings
+        self.updates = updates
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -39,7 +41,8 @@ final class MenuBarController: NSObject {
         // Refresh whenever usage or settings change. objectWillChange fires just
         // BEFORE the value updates, so hop to the main queue to read the new value.
         for publisher in [store.objectWillChange.eraseToAnyPublisher(),
-                          settings.objectWillChange.eraseToAnyPublisher()] {
+                          settings.objectWillChange.eraseToAnyPublisher(),
+                          updates.objectWillChange.eraseToAnyPublisher()] {
             publisher
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in MainActor.assumeIsolated { self?.refresh() } }
@@ -116,6 +119,7 @@ final class MenuBarController: NSObject {
         let content = UsagePanelView()
             .environmentObject(store)
             .environmentObject(settings)
+            .environmentObject(updates)
         let hosting = NSHostingView(rootView: content)
         let size = hosting.fittingSize
 
@@ -231,7 +235,26 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quit NotchPilot",
+        // Updates: a one-tap download when a newer build is live, otherwise a
+        // manual "check now" (the app also checks once at launch).
+        if updates.available {
+            let title = updates.latestVersion.map { "Download Update · v\($0)" } ?? "Download Update"
+            let item = NSMenuItem(title: title, action: #selector(downloadUpdate), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        } else {
+            let item = NSMenuItem(
+                title: updates.isChecking ? "Checking for Updates…" : "Check for Updates…",
+                action: #selector(checkForUpdates), keyEquivalent: ""
+            )
+            item.target = self
+            item.isEnabled = !updates.isChecking
+            menu.addItem(item)
+        }
+
+        menu.addItem(.separator())
+
+        let quit = NSMenuItem(title: "Quit Claudometer",
                               action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
@@ -244,6 +267,10 @@ final class MenuBarController: NSObject {
     }
 
     @objc private func togglePin() { settings.pinNotch.toggle() }
+
+    @objc private func checkForUpdates() { Task { await updates.check() } }
+
+    @objc private func downloadUpdate() { updates.openDownload() }
 
     @objc private func toggleLogin() {
         _ = LoginItem.toggle()
