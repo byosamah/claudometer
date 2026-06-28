@@ -43,6 +43,17 @@
     <svg id="mascotSvg" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg"
          shape-rendering="geometricPrecision" aria-label="Claude mascot">
       <defs>
+        <!-- soft breathing aura behind the burst (its own light source) -->
+        <radialGradient id="glowGrad" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0"    stop-color="#F4AE88" stop-opacity="0.55" />
+          <stop offset="0.45" stop-color="#E58457" stop-opacity="0.26" />
+          <stop offset="1"    stop-color="#E58457" stop-opacity="0" />
+        </radialGradient>
+        <!-- specular highlight on the core for dimensionality -->
+        <radialGradient id="coreHiGrad" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#FCE0D0" stop-opacity="0.62" />
+          <stop offset="1" stop-color="#FCE0D0" stop-opacity="0" />
+        </radialGradient>
         <!-- ray: dark coral at the base (center), lighter coral at the tip -->
         <linearGradient id="rayGrad" x1="0" y1="1" x2="0" y2="0">
           <stop offset="0"   stop-color="#C8654A" />
@@ -61,6 +72,8 @@
 
       <!-- static centering group: GSAP never touches this -->
       <g transform="translate(130,130)">
+        <!-- breathing aura: stays a soft circle while the body squashes inside it -->
+        <circle id="glow" cx="0" cy="0" r="116" fill="url(#glowGrad)" opacity="0.9" />
         <!-- everything below is centered on (0,0) -->
         <g id="mascot">
 
@@ -81,6 +94,8 @@
 
           <!-- solid core = the face disc -->
           <circle id="core" cx="0" cy="0" r="40" fill="url(#coreGrad)" />
+          <!-- specular highlight for a rounded, lit look -->
+          <ellipse id="coreHi" cx="-11" cy="-13" rx="27" ry="22" fill="url(#coreHiGrad)" />
 
           <!-- face -->
           <g id="face">
@@ -126,6 +141,7 @@
     var mascot = $("mascot");
     var rays   = $("rays");
     var face   = $("face");
+    var glow   = $("glow");
     var eyeL   = $("eyeL"), eyeR = $("eyeR"), eyes = [eyeL, eyeR];
     var brows  = $("brows"), browL = $("browL"), browR = $("browR");
     var mouthHappy = $("mouthHappy"), mouthWorried = $("mouthWorried");
@@ -135,7 +151,7 @@
     var mapRange = gsap.utils.mapRange;
 
     // give every animated node a centered transform origin
-    gsap.set([mascot, rays, face], { transformOrigin: "50% 50%" });
+    gsap.set([mascot, rays, face, glow], { transformOrigin: "50% 50%" });
     gsap.set(eyes,  { transformOrigin: "50% 50%", svgOrigin: "" });
     gsap.set(eyeL,  { transformOrigin: "-11px -3.5px" });
     gsap.set(eyeR,  { transformOrigin: "11px -3.5px" });
@@ -157,7 +173,7 @@
       for (var i = 0; i < active.length; i++) { if (active[i]) active[i].kill(); }
       active.length = 0;
       if (blinkCall) { blinkCall.kill(); blinkCall = null; }
-      gsap.killTweensOf([mascot, rays, face, eyeL, eyeR, browL, browR, brows, mouthHappy, mouthWorried, fx]);
+      gsap.killTweensOf([mascot, rays, face, glow, eyeL, eyeR, browL, browR, brows, mouthHappy, mouthWorried, fx]);
     }
 
     // ---- shared helpers --------------------------------------------------
@@ -189,9 +205,14 @@
         duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       // soft vertical bob
       add(gsap.to(mascot, { y: -3, duration: 2.5, ease: "sine.inOut", yoyo: true, repeat: -1 }));
-      // barely-there ray sway + shimmer (low CPU)
+      // barely-there ray sway + shimmer; two periods that never line up read as organic
       add(gsap.to(rays, { rotation: 7, duration: 5.5, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       add(gsap.to(rays, { scale: 1.025, duration: 2.8, ease: "sine.inOut", yoyo: true, repeat: -1 }));
+      add(gsap.to(rays, { scaleX: 1.012, duration: 1.7, ease: "sine.inOut", yoyo: true, repeat: -1 }));
+      // breathing aura, synced to the body breathe
+      add(gsap.timeline()
+        .to(glow, { opacity: 0.92, scale: 1, duration: 0.5, ease: "power2.out" })
+        .to(glow, { opacity: 1, scale: 1.07, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       openEyes(); hideBrows(); hideMouths(); settleFx();
       scheduleBlink();
     };
@@ -211,6 +232,10 @@
       // lively ray spin + pulse
       add(gsap.to(rays, { rotation: "+=360", duration: mapRange(0, 1, 7, 3.2, i), ease: "none", repeat: -1 }));
       add(gsap.to(rays, { scale: 1.06, duration: dur, ease: "sine.inOut", yoyo: true, repeat: -1 }));
+      // brighter, wider aura pulsing with the bounce tempo
+      add(gsap.timeline()
+        .to(glow, { opacity: 1, scale: 1.12, duration: 0.3, ease: "power2.out" })
+        .to(glow, { scale: 1.22, duration: dur, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       // happy squinty eyes + smile
       add(gsap.to(eyes, { scaleY: 0.78, y: 1, duration: 0.3, ease: "power2.out" }));
       add(gsap.to(mouthHappy, { opacity: 1, duration: 0.3 }));
@@ -230,6 +255,9 @@
       // rays vibrate
       add(gsap.fromTo(rays, { rotation: -2.5 }, { rotation: 2.5, duration: sp, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       add(gsap.to(rays, { scale: 1.02, duration: 0.16, ease: "sine.inOut", yoyo: true, repeat: -1 }));
+      // tight aura that nervously flickers
+      add(gsap.to(glow, { scale: 1.0, opacity: 0.95, duration: 0.2 }));
+      add(gsap.to(glow, { opacity: "random(0.55, 1)", duration: 0.09, ease: "none", repeat: -1, repeatRefresh: true }));
       // wide alarmed eyes
       add(gsap.to(eyes, { scaleY: 1.22, scaleX: 1.12, y: -1, duration: 0.2, ease: "power2.out" }));
       // worried brows angled down-in
@@ -247,6 +275,8 @@
       hideBrows(); hideMouths(); settleFx();
       gsap.set(rays, { rotation: -40, scale: 0.5 });
       gsap.set(eyes, { scaleY: 0, scaleX: 1, y: 0 });
+      // aura bursts outward with the pop (idle takes it over on settle)
+      add(gsap.fromTo(glow, { scale: 0.4, opacity: 0 }, { scale: 1.28, opacity: 1, duration: 0.45, ease: "back.out(2)" }));
       add(gsap.to(rays, { rotation: 0, scale: 1, duration: 0.7, ease: "back.out(2)" }));
       add(gsap.to(eyes, { scaleY: 1, duration: 0.45, ease: "back.out(3)", delay: 0.12 }));
       add(gsap.timeline({ onComplete: function () { setMood("idle", lastIntensity); } })
@@ -271,6 +301,10 @@
       // rays droop & dim slightly
       add(gsap.to(rays, { rotation: -4, scale: 0.95, duration: 1.6, ease: "power2.inOut" }));
       add(gsap.to(rays, { scale: 0.92, duration: 3.4, ease: "sine.inOut", yoyo: true, repeat: -1, delay: 1.6 }));
+      // aura dims and contracts as it dozes off
+      add(gsap.timeline()
+        .to(glow, { opacity: 0.5, scale: 0.85, duration: 1.6, ease: "power2.inOut" })
+        .to(glow, { opacity: 0.4, scale: 0.8, duration: 3.4, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       settleFx();
     };
 
@@ -280,6 +314,8 @@
       add(gsap.to(rays,   { rotation: 0, scale: 0.97, duration: 0.5, ease: "power2.out" }));
       add(gsap.to(eyes,   { scaleY: 0.14, scaleX: 1, y: 1, duration: 0.5, ease: "power2.inOut" }));
       hideBrows(); hideMouths();
+      // aura goes cold
+      add(gsap.to(glow, { opacity: 0.12, scale: 0.82, duration: 0.6, ease: "power2.out" }));
       add(gsap.to(fx, { gray: 1, bright: 0.78, op: 0.55, duration: 0.6, ease: "power2.out", onUpdate: applyFx }));
     };
 
