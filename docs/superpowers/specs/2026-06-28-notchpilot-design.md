@@ -67,15 +67,22 @@ These were validated live on the owner's machine before this spec was written.
 ## 4. Architecture
 
 Native **Swift / SwiftUI**, built as an **accessory app** (`LSUIElement`, no Dock
-icon, no menu bar by default). Notch geometry handled by **DynamicNotchKit**
-(SwiftUI Swift Package). Login-item registration via **`SMAppService`**.
+icon, no menu bar by default). Notch geometry handled **natively** via `NSScreen`
+(`safeAreaInsets`, `auxiliaryTopLeftArea/RightArea`) + a borderless non-activating
+`NSPanel` (no third-party package). Login-item registration via **`SMAppService`**.
+
+**Build toolchain (constraint-driven):** this machine has **Command Line Tools only,
+no full Xcode**, and SwiftPM's `swift build` is broken here. So we compile sources
+**directly with `swiftc -parse-as-library`** and hand-assemble the `.app` bundle via
+a `build.sh` (writes Info.plist + ad-hoc `codesign --sign -`). No `.xcodeproj`, no
+SwiftPM, no network fetch. Apple frameworks only.
 
 Components, each with a single responsibility:
 
 | Component | Responsibility | Depends on |
 |---|---|---|
-| `KeychainReader` | Read the OAuth access token from `Claude Code-credentials`. | Security.framework |
-| `UsageClient` | `GET /api/oauth/usage`, decode JSON → `UsageSnapshot`. | `KeychainReader`, URLSession |
+| `TokenProvider` | Read the OAuth token via `/usr/bin/security` subprocess (proven path; native `SecItemCopyMatching` deferred to v1.1 pending app signing/ACL). | Foundation `Process` |
+| `UsageClient` | `GET /api/oauth/usage`, decode JSON → `UsageSnapshot`. | `TokenProvider`, URLSession |
 | `UsageStore` | `@Observable` source of truth. Polls on a timer, exposes snapshot + `ConnectionState`. | `UsageClient` |
 | `NotchView` | Collapsed peek + hover-expanded panel. | `UsageStore`, `Mascot` |
 | `Mascot` | SwiftUI-drawn animated character; renders a `MascotState`. | (pure view) |
@@ -198,11 +205,12 @@ silent success.
 
 ## 13. Dependencies
 
-- **DynamicNotchKit** (SwiftPM) — notch surface + animation.
-- Apple frameworks: SwiftUI, Security (Keychain), ServiceManagement
-  (`SMAppService`), Foundation (URLSession, Process).
-- No JS/Node runtime dependency (ccusage dropped in favor of the official
-  endpoint).
+- **None third-party.** Apple frameworks only: SwiftUI, AppKit (`NSPanel`,
+  `NSScreen`), ServiceManagement (`SMAppService`), Foundation (URLSession,
+  Process).
+- Notch surface is hand-built on native `NSScreen`/`NSPanel` (no DynamicNotchKit).
+- No JS/Node runtime dependency (ccusage dropped in favor of the official endpoint).
+- Build needs only Command Line Tools (`swiftc`, `codesign`); no Xcode, no SwiftPM.
 
 ## 14. Success criteria
 
