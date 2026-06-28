@@ -74,6 +74,19 @@ ghosts. Run launch / kill / capture with the sandbox disabled, and verify the ki
 For runtime diagnostics, `NSLog`/`log show` was unreliable here; temporarily append
 to a file (`/tmp/notchpilot-debug.log`) and `cat` it for deterministic per-poll evidence.
 
+- **App icon:** `./icon/build-icns.sh` regenerates `Resources/AppIcon.icns` (the
+  coral sunburst mascot) from `icon/Claudometer-1024.png`; `Info.plist` sets
+  `CFBundleIconFile=AppIcon` and `build.sh` bundles `Resources/`. Verify by
+  extracting a rep (`sips -s format png AppIcon.icns ...`), NOT `qlmanage -t` on
+  the `.app` (it hangs for 2+ min). Design source: `icon/icon-source.html`.
+- **Verifying `web/`:** claude-in-chrome is often not connected; serve with
+  `python3 -m http.server --directory web` (sandbox disabled) and delegate
+  screenshots to a Playwright subagent. Transparent PNGs need
+  `page.screenshot({omitBackground:true})` via `browser_run_code_unsafe` (the
+  screenshot tool has no transparency option). `web/` reveals use
+  IntersectionObserver + progressive enhancement (`html.js .reveal` hidden) so
+  content survives a GSAP/JS failure; GSAP is vendored from raw.githubusercontent.com.
+
 ## Hard toolchain constraints (these will bite you)
 
 - **Verify new Apple-SDK APIs by compiling a probe**, don't guess: CLT ships

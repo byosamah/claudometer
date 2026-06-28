@@ -13,3 +13,6 @@
 
 # vercel link
 .vercel/
+
+# personal Claude notes
+.claude.local.md
