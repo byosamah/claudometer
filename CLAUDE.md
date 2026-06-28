@@ -33,6 +33,8 @@ There are no tests. Verify changes by rebuilding, relaunching, and screenshottin
 the notch (`screencapture -x -R<x>,0,960,300 out.png`; the notch is top-center).
 Use `cliclick m:<x>,<y>` to drive hover for the expanded panel. Record the GSAP
 mascot's live motion with `screencapture -v -V <secs> -R <x,y,w,h> out.mov`.
+For runtime diagnostics, `NSLog`/`log show` was unreliable here; temporarily append
+to a file (`/tmp/notchpilot-debug.log`) and `cat` it for deterministic per-poll evidence.
 
 ## Hard toolchain constraints (these will bite you)
 
@@ -102,6 +104,11 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
 - **`NSPanel.hasShadow = false`.** A transparent window with rounded/carved content
   otherwise casts a rectangular window shadow that ghosts behind the shape. Let the
   SwiftUI shape cast its own (or none, for the carved look).
+- **`/api/oauth/usage` rate-limits (HTTP 429) under rapid requests** and clears the
+  instant you stop. The poller treats 429 as `.rateLimited` and backs off 60–300s —
+  NEVER fast-retry a 429 (that perpetuates it, looking like a permanent "Offline").
+  Dev-loop trap: each launch + diagnostic curl fires a request, so rapid
+  rebuild/relaunch can trip it. Steady 60s polling is safe.
 
 ## Operational / trust-model notes
 
