@@ -118,7 +118,7 @@ final class NotchWindowController: NSWindowController {
                                     .fullScreenAuxiliary] // shows over other apps' full-screen spaces
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false   // no rectangular window shadow; the SwiftUI shape casts its own
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true            // only takes key when a control truly needs it
         panel.isFloatingPanel = true
