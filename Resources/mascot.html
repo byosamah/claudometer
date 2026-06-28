@@ -77,19 +77,21 @@
         <!-- everything below is centered on (0,0) -->
         <g id="mascot">
 
-          <!-- the burst of rays (organic, slightly irregular lengths) -->
+          <!-- the burst of rays (organic, slightly irregular lengths).
+               rotation lives on the static parent <g> so GSAP can flex each
+               inner ray along its own axis (translate y) without fighting it. -->
           <g id="rays">
-            <use href="#ray" transform="rotate(-4)   scale(1,1.00)" />
-            <use href="#ray" transform="rotate(29)   scale(1,0.93)" />
-            <use href="#ray" transform="rotate(64)   scale(1,1.06)" />
-            <use href="#ray" transform="rotate(93)   scale(1,0.97)" />
-            <use href="#ray" transform="rotate(128)  scale(1,1.02)" />
-            <use href="#ray" transform="rotate(162)  scale(1,0.91)" />
-            <use href="#ray" transform="rotate(196)  scale(1,1.05)" />
-            <use href="#ray" transform="rotate(230)  scale(1,0.96)" />
-            <use href="#ray" transform="rotate(262)  scale(1,1.07)" />
-            <use href="#ray" transform="rotate(296)  scale(1,0.95)" />
-            <use href="#ray" transform="rotate(330)  scale(1,1.01)" />
+            <g transform="rotate(-4)"><use href="#ray" class="ray" transform="scale(1,1.00)" /></g>
+            <g transform="rotate(29)"><use href="#ray" class="ray" transform="scale(1,0.93)" /></g>
+            <g transform="rotate(64)"><use href="#ray" class="ray" transform="scale(1,1.06)" /></g>
+            <g transform="rotate(93)"><use href="#ray" class="ray" transform="scale(1,0.97)" /></g>
+            <g transform="rotate(128)"><use href="#ray" class="ray" transform="scale(1,1.02)" /></g>
+            <g transform="rotate(162)"><use href="#ray" class="ray" transform="scale(1,0.91)" /></g>
+            <g transform="rotate(196)"><use href="#ray" class="ray" transform="scale(1,1.05)" /></g>
+            <g transform="rotate(230)"><use href="#ray" class="ray" transform="scale(1,0.96)" /></g>
+            <g transform="rotate(262)"><use href="#ray" class="ray" transform="scale(1,1.07)" /></g>
+            <g transform="rotate(296)"><use href="#ray" class="ray" transform="scale(1,0.95)" /></g>
+            <g transform="rotate(330)"><use href="#ray" class="ray" transform="scale(1,1.01)" /></g>
           </g>
 
           <!-- solid core = the face disc -->
@@ -111,6 +113,16 @@
             <path id="mouthHappy" d="M-9,13 Q0,20 9,13" fill="none" stroke="#3A201A"
                   stroke-width="3" stroke-linecap="round" opacity="0" />
             <ellipse id="mouthWorried" cx="0" cy="15" rx="3.6" ry="4.6" fill="#3A201A" opacity="0" />
+          </g>
+
+          <!-- wakeup sparkles: pop outward then fade -->
+          <g id="sparks">
+            <circle class="spark" cx="2"   cy="-80" r="3.2" fill="#FCE0D0" opacity="0" />
+            <circle class="spark" cx="58"  cy="-50" r="2.6" fill="#FCE0D0" opacity="0" />
+            <circle class="spark" cx="74"  cy="10"  r="3.0" fill="#FCE0D0" opacity="0" />
+            <circle class="spark" cx="-52" cy="-46" r="2.8" fill="#FCE0D0" opacity="0" />
+            <circle class="spark" cx="-70" cy="18"  r="2.4" fill="#FCE0D0" opacity="0" />
+            <circle class="spark" cx="20"  cy="72"  r="2.6" fill="#FCE0D0" opacity="0" />
           </g>
 
         </g>
@@ -146,6 +158,8 @@
     var brows  = $("brows"), browL = $("browL"), browR = $("browR");
     var mouthHappy = $("mouthHappy"), mouthWorried = $("mouthWorried");
     var stage  = $("stage");
+    var rayUses = gsap.utils.toArray("#rays .ray");   // each ray, flexed independently
+    var sparks  = gsap.utils.toArray("#sparks .spark");
 
     var clamp    = gsap.utils.clamp(0, 1);
     var mapRange = gsap.utils.mapRange;
@@ -157,6 +171,7 @@
     gsap.set(eyeR,  { transformOrigin: "11px -3.5px" });
     gsap.set(browL, { transformOrigin: "-12.5px -16px" });
     gsap.set(browR, { transformOrigin: "12.5px -16px" });
+    gsap.set(sparks, { transformOrigin: "50% 50%" });
 
     // visual filter (for the "offline" mood) driven by a proxy so it tweens smoothly
     var fx = { gray: 0, bright: 1, op: 1 };
@@ -168,12 +183,18 @@
     // registry of running tweens so we can cleanly kill on mood change
     var active = [];
     var blinkCall = null;
+    var lookCall = null;
     function add(tw) { active.push(tw); return tw; }
     function killAll() {
       for (var i = 0; i < active.length; i++) { if (active[i]) active[i].kill(); }
       active.length = 0;
       if (blinkCall) { blinkCall.kill(); blinkCall = null; }
-      gsap.killTweensOf([mascot, rays, face, glow, eyeL, eyeR, browL, browR, brows, mouthHappy, mouthWorried, fx]);
+      if (lookCall)  { lookCall.kill();  lookCall = null; }
+      gsap.killTweensOf([mascot, rays, face, glow, eyeL, eyeR, browL, browR, brows, mouthHappy, mouthWorried, fx].concat(rayUses).concat(sparks));
+      // reset per-element state that moods don't otherwise re-assert
+      gsap.set(rayUses, { y: 0 });            // un-flex the rays to their base length
+      gsap.set(sparks,  { opacity: 0, scale: 0 });
+      gsap.set(eyes,    { x: 0 });             // recentre eyes after a dart
     }
 
     // ---- shared helpers --------------------------------------------------
@@ -194,6 +215,17 @@
       });
     }
 
+    // occasional curious glance left/right, so idle reads as sentient
+    function scheduleLook() {
+      lookCall = gsap.delayedCall(gsap.utils.random(3.6, 7.5), function () {
+        var dir = gsap.utils.random([-1, 1]);
+        add(gsap.timeline({ onComplete: scheduleLook })
+          .to(eyes, { x: dir * 2.6, duration: 0.45, ease: "power2.inOut" })
+          .to(eyes, { x: dir * 2.6, duration: 0.85 })   // hold the glance
+          .to(eyes, { x: 0,         duration: 0.5, ease: "power2.inOut" }));
+      });
+    }
+
     // ---- moods -----------------------------------------------------------
     var moods = {};
 
@@ -209,12 +241,16 @@
       add(gsap.to(rays, { rotation: 7, duration: 5.5, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       add(gsap.to(rays, { scale: 1.025, duration: 2.8, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       add(gsap.to(rays, { scaleX: 1.012, duration: 1.7, ease: "sine.inOut", yoyo: true, repeat: -1 }));
+      // each ray gently flexes outward on its own staggered rhythm (organic undulation)
+      add(gsap.to(rayUses, { y: -5, duration: 1.5, ease: "sine.inOut", yoyo: true, repeat: -1,
+        stagger: { each: 0.13, from: "random" } }));
       // breathing aura, synced to the body breathe
       add(gsap.timeline()
         .to(glow, { opacity: 0.92, scale: 1, duration: 0.5, ease: "power2.out" })
         .to(glow, { opacity: 1, scale: 1.07, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }));
       openEyes(); hideBrows(); hideMouths(); settleFx();
       scheduleBlink();
+      scheduleLook();
     };
 
     moods.playing = function (i) {
@@ -232,6 +268,9 @@
       // lively ray spin + pulse
       add(gsap.to(rays, { rotation: "+=360", duration: mapRange(0, 1, 7, 3.2, i), ease: "none", repeat: -1 }));
       add(gsap.to(rays, { scale: 1.06, duration: dur, ease: "sine.inOut", yoyo: true, repeat: -1 }));
+      // rays flick outward on their own beat, livelier than idle
+      add(gsap.to(rayUses, { y: -8, duration: dur * 1.2, ease: "sine.inOut", yoyo: true, repeat: -1,
+        stagger: { each: 0.07, from: "random" } }));
       // brighter, wider aura pulsing with the bounce tempo
       add(gsap.timeline()
         .to(glow, { opacity: 1, scale: 1.12, duration: 0.3, ease: "power2.out" })
@@ -277,6 +316,13 @@
       gsap.set(eyes, { scaleY: 0, scaleX: 1, y: 0 });
       // aura bursts outward with the pop (idle takes it over on settle)
       add(gsap.fromTo(glow, { scale: 0.4, opacity: 0 }, { scale: 1.28, opacity: 1, duration: 0.45, ease: "back.out(2)" }));
+      // sparkle burst around the pop
+      gsap.set(sparks, { opacity: 0, scale: 0 });
+      add(gsap.timeline()
+        .to(sparks, { opacity: 1, scale: 1.3, duration: 0.3, ease: "back.out(3)",
+          stagger: { each: 0.035, from: "random" } }, 0.18)
+        .to(sparks, { opacity: 0, scale: 0.5, duration: 0.4, ease: "power2.in",
+          stagger: { each: 0.035, from: "random" } }, ">-0.12"));
       add(gsap.to(rays, { rotation: 0, scale: 1, duration: 0.7, ease: "back.out(2)" }));
       add(gsap.to(eyes, { scaleY: 1, duration: 0.45, ease: "back.out(3)", delay: 0.12 }));
       add(gsap.timeline({ onComplete: function () { setMood("idle", lastIntensity); } })
