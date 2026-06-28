@@ -133,11 +133,16 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   `webView.setValue(false, forKey: "drawsBackground")`. `Resources/` is copied
   into the bundle by `build.sh`. The motion logic is the 2nd `<script>` in
   `mascot.html` (after vendored GSAP) as `moods.{name}(intensity)`; `killAll()`
-  already resets `rayUses`/`sparks`/eyes-x between moods, so each mood only
-  re-asserts what it animates. Moods are kept minimal ("calm & alive": subtle
-  breathe + faint glow + blink).
+  resets `rayUses`/`sparks`/eyes-x AND body scale between moods, so each mood only
+  re-asserts what it animates. The scale reset is load-bearing: a looping yoyo
+  breathe to an absolute scale target decays to a frozen, squished mascot unless
+  scale is re-baselined to 1 before each re-trigger (setMood re-fires every poll/
+  hover). Moods are minimal ("calm & alive": subtle breathe + faint glow + blink).
 - **`SessionStarter.swift`** spawns `claude -p "hi" --model haiku` (absolute path)
-  to open a window. **`LoginItem.swift`** wraps `SMAppService.mainApp`.
+  to open a window. It augments the child `PATH` (a login item inherits launchd's
+  sparse PATH, so an npm/Homebrew `claude` shebang can't find `node`), and the
+  watchdog escalates SIGTERM→SIGKILL so a wedged ping never pins `isWaking` on
+  "Starting…". **`LoginItem.swift`** wraps `SMAppService.mainApp`.
 
 ## Domain facts that are easy to get wrong
 
@@ -166,6 +171,9 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   NEVER fast-retry a 429 (that perpetuates it, looking like a permanent "Offline").
   Dev-loop trap: each launch + diagnostic curl fires a request, so rapid
   rebuild/relaunch can trip it. Steady 60s polling is safe.
+  All polling MUST go through `UsageStore.refresh()`, which owns the `isPolling`
+  single-flight guard; never call `UsageService.currentState()` from a new path,
+  or a manual poll + the loop can fire two concurrent requests and self-trip 429.
 
 ## Operational / trust-model notes
 
