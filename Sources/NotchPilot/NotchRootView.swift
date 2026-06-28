@@ -39,7 +39,7 @@ struct NotchRootView: View {
 
     private var collapsed: some View {
         HStack(spacing: 7) {
-            MascotView(state: store.mascot)
+            MascotView(state: store.mascot, expanded: false)
                 .frame(width: 22, height: 22)
             Text(store.collapsedLabel)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -52,7 +52,7 @@ struct NotchRootView: View {
 
     private var expanded: some View {
         HStack(spacing: 14) {
-            MascotView(state: store.mascot)
+            MascotView(state: store.mascot, expanded: true)
                 .frame(width: 70, height: 70)
 
             VStack(alignment: .leading, spacing: 5) {
@@ -91,8 +91,15 @@ struct NotchRootView: View {
                     store.confirmStart()
                 }
             } else {
-                pillButton("Start Window", fill: .severityCalm) {
-                    store.requestStart()
+                VStack(alignment: .leading, spacing: 3) {
+                    if let err = store.startError {
+                        Label(err, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.severityDanger)
+                    }
+                    pillButton("Start Window", fill: .severityCalm) {
+                        store.requestStart()
+                    }
                 }
             }
         } else {

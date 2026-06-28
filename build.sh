@@ -12,8 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
 # 1. compile all sources directly with swiftc (-parse-as-library because we use @main)
-echo ">> compiling ${APP_NAME} (swiftc, arm64)"
-swiftc -parse-as-library \
+echo ">> compiling ${APP_NAME} (swiftc, arm64, -O)"
+swiftc -O -parse-as-library \
     "${SRC_DIR}"/*.swift \
     -o "${APP_NAME}"
 
@@ -27,8 +27,9 @@ printf 'APPL????' > "${APP}/Contents/PkgInfo"
 plutil -lint "${APP}/Contents/Info.plist"
 
 # 3. ad-hoc codesign ("-" identity). SMAppService needs a valid signature.
+#    No --deep: it's deprecated for signing and there is no nested code here.
 echo ">> ad-hoc codesigning"
-codesign --force --deep --sign - "${APP}"
-codesign --verify --deep --strict --verbose=2 "${APP}"
+codesign --force --sign - "${APP}"
+codesign --verify --strict --verbose=2 "${APP}"
 
 echo ">> built: ${SCRIPT_DIR}/${APP}"

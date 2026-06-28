@@ -15,9 +15,10 @@ enum SessionStarter {
         case notFound          // no `claude` binary on disk
         case failed(Int32)     // non-zero exit
         case launchError       // could not spawn the process
+        case timedOut          // overran the deadline and was terminated
     }
 
-    static func openWindow() async -> Outcome {
+    static func openWindow(timeout: TimeInterval = 25) async -> Outcome {
         guard let claude = claudePath() else { return .notFound }
         let home = FileManager.default.homeDirectoryForCurrentUser
         return await Task.detached(priority: .userInitiated) { () -> Outcome in
@@ -28,7 +29,14 @@ enum SessionStarter {
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             do { try process.run() } catch { return .launchError }
+
+            // Watchdog: reap a wedged ping so waitUntilExit() can never block forever.
+            let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
             process.waitUntilExit()
+            watchdog.cancel()
+
+            if process.terminationReason == .uncaughtSignal { return .timedOut }
             return process.terminationStatus == 0 ? .ok : .failed(process.terminationStatus)
         }.value
     }

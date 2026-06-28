@@ -28,7 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // it in System Settings, status becomes .requiresApproval and we leave
         // their choice alone.
         if LoginItem.status == .notRegistered {
-            _ = LoginItem.enable()
+            if case .failure(let error) = LoginItem.enable() {
+                NSLog("NotchPilot: login-item registration failed: \(error)")
+            }
         }
 
         let controller = NotchWindowController(store: store)

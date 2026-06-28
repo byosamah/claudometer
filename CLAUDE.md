@@ -91,6 +91,18 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
   on expand races the mouse-tracking area and collapses when the pointer moves
   into the panel. The window snaps to full size; SwiftUI crossfades the content.
 
+## Operational / trust-model notes
+
+- **Token ACL is broad by design.** Reading the token via `/usr/bin/security`
+  means the user's first "Always Allow" adds the `security` tool to the keychain
+  item's ACL, after which any user-level process can read the Claude credential
+  prompt-free. This is an accepted tradeoff (avoids the per-app ACL prompt and an
+  entitlement-bearing build) and does not change the threat model: Claude Code
+  already stores and reads the same item the same way.
+- **The login item binds to the bundle path** at first registration, so moving
+  `NotchPilot.app` out of its built location breaks auto-launch until it is
+  re-run (and re-registered) from the new path.
+
 ## Conventions
 
 - No third-party dependencies. Apple frameworks only.

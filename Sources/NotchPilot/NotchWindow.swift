@@ -39,6 +39,34 @@ final class NotchHoverContainer: NSView {
 
     override func mouseEntered(with event: NSEvent) { onEntered?() }
     override func mouseExited(with event: NSEvent)  { onExited?() }
+
+    // Right-click menu: the only way to quit a menu-less, Dock-less accessory app,
+    // plus a launch-at-login toggle. Pure AppKit (no SwiftUI macros).
+    override func rightMouseDown(with event: NSEvent) {
+        let menu = NSMenu()
+
+        let login = NSMenuItem(
+            title: LoginItem.isEnabled ? "Disable Launch at Login" : "Launch at Login",
+            action: #selector(toggleLogin),
+            keyEquivalent: ""
+        )
+        login.target = self
+        menu.addItem(login)
+
+        menu.addItem(.separator())
+
+        let quit = NSMenuItem(
+            title: "Quit NotchPilot",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: ""
+        )
+        quit.target = NSApp
+        menu.addItem(quit)
+
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func toggleLogin() { _ = LoginItem.toggle() }
 }
 
 // MARK: - Notch geometry, derived purely from NSScreen
@@ -209,8 +237,10 @@ final class NotchWindowController: NSWindowController {
     }
 
     @objc private func screenParametersChanged(_ note: Notification) {
-        // Re-pin to whatever screen now owns the notch (or fall back).
+        // Re-pin to whatever screen now owns the notch (or fall back), and
+        // re-assert front in case the topology change dropped the ordering.
         reposition(animated: false)
+        window?.orderFrontRegardless()
     }
 
     deinit {

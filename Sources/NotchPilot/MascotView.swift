@@ -121,9 +121,13 @@ private final class MoodClock: ObservableObject {
 /// (dormant / needsAuth) to ~12-14fps so a resting mascot costs almost no CPU.
 public struct MascotView: View {
     private let state: MascotState
+    private let expanded: Bool
 
-    public init(state: MascotState) {
+    /// `expanded` lets the collapsed ~22pt pill sip frames (barely-visible motion)
+    /// while the hovered panel animates at full rate.
+    public init(state: MascotState, expanded: Bool = true) {
         self.state = state
+        self.expanded = expanded
     }
 
     public var body: some View {
@@ -131,7 +135,7 @@ public struct MascotView: View {
         // `MoodClock` (so `wakeup` always restarts its one-shot). The key deliberately
         // ignores the `playing` intensity value, so live intensity updates flow into the
         // existing engine without restarting its clock.
-        MascotEngine(state: state)
+        MascotEngine(state: state, expanded: expanded)
             .id(moodKey)
     }
 
@@ -151,6 +155,7 @@ public struct MascotView: View {
 
 private struct MascotEngine: View {
     let state: MascotState
+    let expanded: Bool
     @StateObject private var clock = MoodClock()
 
     var body: some View {
@@ -164,13 +169,19 @@ private struct MascotEngine: View {
         }
     }
 
-    // Throttle the clock per mood. High-energy moods run at display rate;
-    // resting moods sip frames; offline is fully paused (see isPaused).
+    // Throttle the clock per mood AND by presentation. The always-on collapsed
+    // pill is ~22pt where motion is barely visible, so it sips frames; the
+    // hovered panel animates at full rate. Honors Low Power / thermal pressure.
     private var tickInterval: Double {
+        if !expanded { return 1.0 / 12 }   // collapsed pill: barely-visible motion
+        let easeUp = ProcessInfo.processInfo.isLowPowerModeEnabled
+            || ProcessInfo.processInfo.thermalState != .nominal
+        let fast = easeUp ? 1.0 / 24 : 1.0 / 60
         switch state {
         case .dormant:   return 1.0 / 14
         case .needsAuth: return 1.0 / 12
-        case .playing, .frantic, .wakeup: return 1.0 / 60
+        // Keep frantic at full rate when expanded: its 19/23 Hz jitter aliases below 60fps.
+        case .playing, .frantic, .wakeup: return fast
         case .offline:   return 1.0 / 30   // irrelevant; clock is paused
         }
     }

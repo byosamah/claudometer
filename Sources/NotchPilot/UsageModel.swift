@@ -33,6 +33,10 @@ struct UsageSnapshot: Sendable, Equatable {
     let sessionPercent: Int
     let sessionResetsAt: Date?
     let sessionSeverity: Severity
+    /// True when the 5-hour window has ANY usage. Derived from the raw Double,
+    /// so a freshly opened window (e.g. 0.3%, which rounds to 0%) still counts
+    /// as open. Do not infer "window open" from `sessionPercent > 0`.
+    let sessionHasUsage: Bool
     let weeklyPercent: Int
     let weeklyResetsAt: Date?
     let weeklySeverity: Severity
@@ -143,17 +147,25 @@ extension UsageSnapshot {
         let weeklySeverity = Severity(apiValue: limits.first { $0.kind == "weekly_all" }?.severity)
 
         let sessionUtil = raw.five_hour?.utilization ?? 0
-        let weeklyUtil = raw.seven_day?.utilization ?? 0
 
         return UsageSnapshot(
-            sessionPercent: Int(sessionUtil.rounded()),
+            sessionPercent: Self.clampPercent(raw.five_hour?.utilization),
             sessionResetsAt: ISODate.parse(raw.five_hour?.resets_at),
             sessionSeverity: sessionSeverity,
-            weeklyPercent: Int(weeklyUtil.rounded()),
+            sessionHasUsage: sessionUtil.isFinite && sessionUtil > 0,
+            weeklyPercent: Self.clampPercent(raw.seven_day?.utilization),
             weeklyResetsAt: ISODate.parse(raw.seven_day?.resets_at),
             weeklySeverity: weeklySeverity,
             fetchedAt: fetchedAt
         )
+    }
+
+    /// Never feed an untrusted server Double straight into `Int(...)`: NaN,
+    /// infinity, or a value past Int range traps (SIGABRT). Guard finiteness and
+    /// clamp to a sane 0...100 percent.
+    private static func clampPercent(_ value: Double?) -> Int {
+        guard let value, value.isFinite else { return 0 }
+        return Int(min(max(value.rounded(), 0), 100))
     }
 }
 
@@ -235,7 +247,16 @@ struct TokenProvider: Sendable {
 
 struct UsageClient: Sendable {
     var endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
-    var session: URLSession = .shared
+    /// Ephemeral so the credentialed response is never written to the on-disk
+    /// URLCache and we don't share process-wide cookie/credential storage.
+    /// Tight timeouts so a stalled request can't outlive the poll interval.
+    var session: URLSession = {
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.urlCache = nil
+        cfg.timeoutIntervalForRequest = 15
+        cfg.timeoutIntervalForResource = 20
+        return URLSession(configuration: cfg)
+    }()
 
     /// Performs the authenticated GET and folds the outcome into ConnectionState.
     /// - 200..<300 -> decode -> .ok
