@@ -35,6 +35,9 @@ final class UsageStore: ObservableObject {
     /// stale) data instead of blanking to offline.
     private var lastGood: UsageSnapshot?
     private var failureStreak = 0
+    /// Keep showing the last good reading through outages until it's this old, so a
+    /// brief network blip (wake-from-sleep, a saturated link) never flashes "Offline".
+    private let staleAfter: TimeInterval = 600   // 10 minutes
 
     /// How often to re-check usage when healthy. Utilization moves slowly.
     private let pollInterval: Duration = .seconds(60)
@@ -46,15 +49,24 @@ final class UsageStore: ObservableObject {
         pollTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                let healthy = await self.refresh()
-                // Heal fast: back off 4 → 8 → 16 → 32 → 60s on consecutive
-                // failures rather than waiting a full interval, so a transient
-                // blip recovers in seconds. Steady cadence once healthy.
-                let delay: Duration = healthy
-                    ? self.pollInterval
-                    : .seconds(min(60, 4 << min(max(self.failureStreak - 1, 0), 4)))
-                try? await Task.sleep(for: delay)
+                let result = await self.refresh()
+                try? await Task.sleep(for: self.nextDelay(after: result))
             }
+        }
+    }
+
+    /// How long to wait before the next poll, given what just happened.
+    private func nextDelay(after result: ConnectionState) -> Duration {
+        switch result {
+        case .ok:
+            return pollInterval                                  // steady 60s
+        case .rateLimited(let retryAfter):
+            // NEVER fast-retry a 429 — that perpetuates it. Wait it out (respect
+            // Retry-After if present), clamped to a sane 60…300s window.
+            return .seconds(min(300, max(60, retryAfter ?? 90)))
+        case .offline, .needsAuth, .noBinary:
+            // transient: heal fast with a bounded 4 → 8 → 16 → 32 → 60s backoff.
+            return .seconds(min(60, 4 << min(max(failureStreak - 1, 0), 4)))
         }
     }
 
@@ -76,36 +88,42 @@ final class UsageStore: ObservableObject {
     }
 
     @discardableResult
-    private func refresh() async -> Bool {
+    private func refresh() async -> ConnectionState {
         let next = await service.currentState()
-        return apply(next)
+        apply(next)
+        return next
     }
 
-    /// Folds a fresh result into published state and returns whether it was healthy.
-    /// Holds the last good reading through up to 3 brief failures (real data, just
-    /// seconds old) so one network blip doesn't blank to the offline screen.
-    @discardableResult
-    private func apply(_ next: ConnectionState) -> Bool {
+    /// Folds a fresh result into published state. Holds the last good reading
+    /// through transient network blips AND rate limits (we still have valid data,
+    /// just can't refresh it yet), as long as it's fresh. Auth problems surface now.
+    private func apply(_ next: ConnectionState) {
         loadedOnce = true
         if case .ok(let snap) = next {
             lastGood = snap
             failureStreak = 0
             reconnecting = false
-            state = next
+            state = .ok(snap)
             if !isWaking { mascot = Self.mascotState(for: state) }
-            return true
+            return
         }
 
-        failureStreak += 1
-        if let good = lastGood, failureStreak <= 3 {
+        let holdable: Bool = {
+            switch next { case .offline, .rateLimited: return true; default: return false }
+        }()
+        if holdable, let good = lastGood, Date().timeIntervalSince(good.fetchedAt) < staleAfter {
             reconnecting = true
-            state = .ok(good)          // keep real, slightly-stale data
+            state = .ok(good)          // keep real data; the blip/limit is invisible
         } else {
             reconnecting = false
-            state = next               // honest needsAuth / offline / noBinary
+            state = next               // honest needsAuth / noBinary / stale offline / limited
         }
+
+        // Transient failures (offline/auth/binary) grow the fast-backoff counter; a
+        // 429 is paced by nextDelay's long wait instead, so it resets the counter.
+        if case .rateLimited = next { failureStreak = 0 } else { failureStreak += 1 }
+
         if !isWaking { mascot = Self.mascotState(for: state) }
-        return false
     }
 
     // MARK: Start-window flow (two-tap confirm, no jarring modal)
@@ -155,6 +173,8 @@ final class UsageStore: ObservableObject {
             return .needsAuth
         case .offline:
             return .offline
+        case .rateLimited:
+            return .dormant   // just waiting out the limit, not broken
         case .ok(let snap):
             // The official `severity` field is the primary driver; a high-percent
             // backstop guarantees a visible warning even if severity lags.
@@ -184,7 +204,8 @@ final class UsageStore: ObservableObject {
         switch state {
         case .ok(let s):            return "\(s.sessionPercent)%"
         case .needsAuth, .noBinary: return "sign in"
-        case .offline:              return "offline"
+        case .offline:              return lastGood == nil ? "…" : "offline"
+        case .rateLimited:          return "…"
         }
     }
 
@@ -203,7 +224,10 @@ final class UsageStore: ObservableObject {
         switch state {
         case .needsAuth: return "Open Claude Code to sign in"
         case .noBinary:  return "Keychain unavailable"
-        case .offline:   return "Offline · retrying"
+        // No lastGood yet => we've simply never connected (still trying), which is
+        // gentler than "Offline". A real "Offline" only shows after a >10min outage.
+        case .offline:   return lastGood == nil ? "Connecting…" : "Offline · retrying"
+        case .rateLimited: return "Connecting…"   // only reached before we ever have data
         case .ok:        return ""
         }
     }
@@ -217,7 +241,7 @@ final class UsageStore: ObservableObject {
             if s.sessionSeverity == .critical || s.sessionPercent >= 85 { return .severityDanger }
             if s.sessionSeverity == .warning { return .severityWarn }
             return .severityCalm
-        case .needsAuth, .noBinary, .offline:
+        case .needsAuth, .noBinary, .offline, .rateLimited:
             return .secondary
         }
     }

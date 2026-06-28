@@ -8,6 +8,7 @@ enum ConnectionState: Sendable, Equatable {
     case needsAuth        // 401, or no usable token in the Keychain
     case offline          // URLError / timeout / unreadable response
     case noBinary         // /usr/bin/security could not be launched
+    case rateLimited(retryAfter: TimeInterval?)  // HTTP 429 — back off HARD, never fast-retry
 }
 
 // MARK: - Severity
@@ -253,14 +254,16 @@ struct UsageClient: Sendable {
     var session: URLSession = {
         let cfg = URLSessionConfiguration.ephemeral
         cfg.urlCache = nil
-        cfg.timeoutIntervalForRequest = 15
-        cfg.timeoutIntervalForResource = 20
+        cfg.timeoutIntervalForRequest = 25
+        cfg.timeoutIntervalForResource = 40
+        cfg.waitsForConnectivity = true   // ride out a brief connectivity gap instead of erroring
         return URLSession(configuration: cfg)
     }()
 
     /// Performs the authenticated GET and folds the outcome into ConnectionState.
     /// - 200..<300 -> decode -> .ok
     /// - 401       -> .needsAuth
+    /// - 429       -> .rateLimited (poller backs off hard, never fast-retries)
     /// - URLError  -> .offline
     /// - other     -> .offline
     func fetchUsage(token: String) async -> ConnectionState {
@@ -272,17 +275,21 @@ struct UsageClient: Sendable {
 
         do {
             let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .offline }
+            guard let http = response as? HTTPURLResponse else {
+                return .offline
+            }
 
             switch http.statusCode {
             case 200..<300:
                 guard let raw = try? JSONDecoder().decode(RawUsageResponse.self, from: data) else {
-                    // Body present but not the shape we expect (schema drift).
                     return .offline
                 }
                 return .ok(UsageSnapshot.make(from: raw))
             case 401:
                 return .needsAuth
+            case 429:
+                let ra = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
+                return .rateLimited(retryAfter: ra)
             default:
                 return .offline
             }
@@ -308,7 +315,6 @@ struct UsageService: Sendable {
         } catch TokenError.binaryNotFound {
             return .noBinary
         } catch {
-            // keychainDenied / securityFailed / malformedJSON: no usable token.
             return .needsAuth
         }
         return await usageClient.fetchUsage(token: token)
