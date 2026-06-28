@@ -2,3 +2,6 @@
 /.build
 /build
 *.xcuserstate
+
+/NotchPilot.app
+/NotchPilot
