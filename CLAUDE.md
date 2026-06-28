@@ -68,8 +68,12 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
 - **`NotchWindow.swift`** owns the AppKit side: a borderless non-activating
   `NSPanel` pinned at the notch via `NSScreen` geometry, hosting the SwiftUI view.
 - **`NotchRootView.swift`** is the collapsed pill + hover-expanded panel.
-- **`MascotView.swift`** is the self-contained `Canvas`-drawn mascot (6 moods,
-  `TimelineView(.animation)` that pauses when idle).
+- **`MascotView.swift`** hosts the real Claude sunburst mascot
+  (`Resources/mascot.html`, an SVG + vendored GSAP animation) in a transparent
+  WKWebView, driven by mood via `window.NotchMascot.setMood(name, intensity)`.
+  Keep it ONE persistent instance (it's the stable first child of the HStack in
+  `NotchRootView`, resized between pill/panel) so the always-visible pill never
+  flashes. `Resources/` is copied into the bundle by `build.sh`.
 - **`SessionStarter.swift`** spawns `claude -p "hi" --model haiku` (absolute path)
   to open a window. **`LoginItem.swift`** wraps `SMAppService.mainApp`.
 
@@ -105,7 +109,9 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
 
 ## Conventions
 
-- No third-party dependencies. Apple frameworks only.
+- No third-party Swift dependencies (Apple frameworks only). The mascot is the one
+  exception: `Resources/mascot.html` vendors GSAP inline (a JS asset, no Swift dep,
+  no runtime network).
 - Honest empty states only: on missing token / 401 / offline, show the real state,
   never a fabricated percentage.
 - Do not add a Co-Authored-By trailer to commits. Do not use em-dashes anywhere.
