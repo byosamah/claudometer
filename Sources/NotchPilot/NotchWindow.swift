@@ -7,6 +7,9 @@ import QuartzCore   // CAMediaTimingFunction
 @MainActor
 final class NotchState: ObservableObject {
     @Published var isExpanded: Bool = false
+    /// Physical notch width in points, so the panel can carve its top to flare
+    /// out exactly from the notch's left/right edges.
+    @Published var notchWidth: CGFloat = 200
 }
 
 // MARK: - Non-activating panel subclass
@@ -226,6 +229,7 @@ final class NotchWindowController: NSWindowController {
 
     private func reposition(animated: Bool) {
         guard let panel = window, let m = currentMetrics() else { return }
+        state.notchWidth = m.notchWidth
         let target = frame(expanded: state.isExpanded, m)
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
