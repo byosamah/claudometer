@@ -31,7 +31,8 @@ swiftc -parse-as-library -typecheck -swift-version 6 -strict-concurrency=complet
 
 There are no tests. Verify changes by rebuilding, relaunching, and screenshotting
 the notch (`screencapture -x -R<x>,0,960,300 out.png`; the notch is top-center).
-Use `cliclick m:<x>,<y>` to drive hover for the expanded panel.
+Use `cliclick m:<x>,<y>` to drive hover for the expanded panel. Record the GSAP
+mascot's live motion with `screencapture -v -V <secs> -R <x,y,w,h> out.mov`.
 
 ## Hard toolchain constraints (these will bite you)
 
@@ -67,13 +68,17 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
   this single store.
 - **`NotchWindow.swift`** owns the AppKit side: a borderless non-activating
   `NSPanel` pinned at the notch via `NSScreen` geometry, hosting the SwiftUI view.
-- **`NotchRootView.swift`** is the collapsed pill + hover-expanded panel.
+- **`NotchRootView.swift`** is the collapsed pill + hover-expanded panel. The expanded
+  background is a custom `NotchCarveShape` (flat top spanning the notch width, concave
+  flares to full width) fed by `notch.notchWidth` — NOT a RoundedRectangle; it reads
+  as carved out of the notch.
 - **`MascotView.swift`** hosts the real Claude sunburst mascot
   (`Resources/mascot.html`, an SVG + vendored GSAP animation) in a transparent
   WKWebView, driven by mood via `window.NotchMascot.setMood(name, intensity)`.
   Keep it ONE persistent instance (it's the stable first child of the HStack in
   `NotchRootView`, resized between pill/panel) so the always-visible pill never
-  flashes. `Resources/` is copied into the bundle by `build.sh`.
+  flashes. `Resources/` is copied into the bundle by `build.sh`. Transparency needs
+  `webView.setValue(false, forKey: "drawsBackground")`.
 - **`SessionStarter.swift`** spawns `claude -p "hi" --model haiku` (absolute path)
   to open a window. **`LoginItem.swift`** wraps `SMAppService.mainApp`.
 
@@ -94,6 +99,9 @@ TokenProvider ──> UsageClient ──> UsageService ──> UsageStore ──
 - **Expand the notch panel instantly, not animated.** Animating the window frame
   on expand races the mouse-tracking area and collapses when the pointer moves
   into the panel. The window snaps to full size; SwiftUI crossfades the content.
+- **`NSPanel.hasShadow = false`.** A transparent window with rounded/carved content
+  otherwise casts a rectangular window shadow that ghosts behind the shape. Let the
+  SwiftUI shape cast its own (or none, for the carved look).
 
 ## Operational / trust-model notes
 
