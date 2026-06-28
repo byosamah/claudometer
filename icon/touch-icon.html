@@ -1,0 +1,15 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;width:512px;height:512px;overflow:hidden}
+  body{display:grid;place-items:center;position:relative;background:linear-gradient(150deg,#2b2420 0%,#16110e 100%)}
+  .glow{position:absolute;inset:0;background:radial-gradient(circle at 50% 47%, rgba(224,135,95,.5), rgba(224,135,95,0) 58%)}
+  .spark{width:300px;height:300px;position:relative;filter:drop-shadow(0 10px 40px rgba(224,135,95,.55))}
+  .rays{stroke:#e3895f}.body{fill:#e3895f}.eye{fill:#1a0f0a}
+</style></head><body>
+  <div class="glow"></div>
+  <svg class="spark" viewBox="0 0 24 24">
+    <g class="rays" stroke-width="1.7" stroke-linecap="round">
+      <line x1="16.2" y1="12" x2="22" y2="12"/><line x1="15.64" y1="14.1" x2="20.66" y2="17"/><line x1="14.1" y1="15.64" x2="17" y2="20.66"/><line x1="12" y1="16.2" x2="12" y2="22"/><line x1="9.9" y1="15.64" x2="7" y2="20.66"/><line x1="8.36" y1="14.1" x2="3.34" y2="17"/><line x1="7.8" y1="12" x2="2" y2="12"/><line x1="8.36" y1="9.9" x2="3.34" y2="7"/><line x1="9.9" y1="8.36" x2="7" y2="3.34"/><line x1="12" y1="7.8" x2="12" y2="2"/><line x1="14.1" y1="8.36" x2="17" y2="3.34"/><line x1="15.64" y1="9.9" x2="20.66" y2="7"/>
+    </g>
+    <circle class="body" cx="12" cy="12" r="4.6"/><circle class="eye" cx="10.3" cy="11.5" r=".95"/><circle class="eye" cx="13.7" cy="11.5" r=".95"/>
+  </svg>
+</body></html>

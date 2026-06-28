@@ -1,0 +1,47 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Geist:wght@400;500&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;box-sizing:border-box}
+  html,body{width:1200px;height:630px;overflow:hidden}
+  body{background:#14110f;color:#f2ede8;font-family:'Geist',-apple-system,sans-serif;
+    position:relative;display:flex;align-items:center;padding:0 86px;gap:30px}
+  .aurora{position:absolute;inset:-30% -10% auto -10%;height:130%;filter:blur(72px);opacity:.62;pointer-events:none;
+    background:radial-gradient(42% 60% at 80% 32%, rgba(217,119,87,.55), transparent 70%),
+               radial-gradient(34% 50% at 28% 8%, rgba(237,158,127,.25), transparent 72%)}
+  .left{position:relative;flex:1;z-index:2}
+  .eyebrow{font-family:'Geist Mono',monospace;font-size:20px;letter-spacing:.18em;text-transform:uppercase;color:#d97757;margin-bottom:24px}
+  h1{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:116px;line-height:.92;letter-spacing:-.03em;margin-bottom:26px}
+  .tag{font-size:31px;color:#b7ada3;max-width:17ch;line-height:1.28}
+  .meta{font-family:'Geist Mono',monospace;font-size:18px;color:#8b8078;margin-top:34px;letter-spacing:.03em}
+  .right{position:relative;z-index:2;width:340px;height:100%;display:grid;place-items:center}
+  .chip{position:absolute;top:120px;right:6px;display:flex;align-items:center;gap:10px;padding:11px 18px;border-radius:16px;
+    background:rgba(28,23,20,.72);border:1px solid rgba(255,255,255,.12);font-family:'Geist Mono',monospace;font-size:25px;font-weight:500}
+  .chip .pct{color:#d97757}
+  .big{width:312px;height:312px;filter:drop-shadow(0 18px 72px rgba(224,135,95,.6))}
+  .mini{width:30px;height:30px}
+  .rays{stroke:#e3895f}.body{fill:#e3895f}.eye{fill:#1a0f0a}
+</style></head><body>
+  <div class="aurora"></div>
+  <div class="left">
+    <div class="eyebrow">Menu-bar app for Claude Max</div>
+    <h1>Claudometer</h1>
+    <div class="tag">Your Claude usage, always in the corner of your eye.</div>
+    <div class="meta">Free &amp; open source · macOS 26 · Apple Silicon</div>
+  </div>
+  <div class="right">
+    <div class="chip">
+      <svg class="mini" viewBox="0 0 24 24">
+        <g class="rays" stroke-width="1.7" stroke-linecap="round">
+          <line x1="16.2" y1="12" x2="22" y2="12"/><line x1="15.64" y1="14.1" x2="20.66" y2="17"/><line x1="14.1" y1="15.64" x2="17" y2="20.66"/><line x1="12" y1="16.2" x2="12" y2="22"/><line x1="9.9" y1="15.64" x2="7" y2="20.66"/><line x1="8.36" y1="14.1" x2="3.34" y2="17"/><line x1="7.8" y1="12" x2="2" y2="12"/><line x1="8.36" y1="9.9" x2="3.34" y2="7"/><line x1="9.9" y1="8.36" x2="7" y2="3.34"/><line x1="12" y1="7.8" x2="12" y2="2"/><line x1="14.1" y1="8.36" x2="17" y2="3.34"/><line x1="15.64" y1="9.9" x2="20.66" y2="7"/>
+        </g>
+        <circle class="body" cx="12" cy="12" r="4.6"/><circle class="eye" cx="10.3" cy="11.5" r=".95"/><circle class="eye" cx="13.7" cy="11.5" r=".95"/>
+      </svg><span class="pct">16%</span>
+    </div>
+    <svg class="big" viewBox="0 0 24 24">
+      <g class="rays" stroke-width="1.55" stroke-linecap="round">
+        <line x1="16.2" y1="12" x2="22" y2="12"/><line x1="15.64" y1="14.1" x2="20.66" y2="17"/><line x1="14.1" y1="15.64" x2="17" y2="20.66"/><line x1="12" y1="16.2" x2="12" y2="22"/><line x1="9.9" y1="15.64" x2="7" y2="20.66"/><line x1="8.36" y1="14.1" x2="3.34" y2="17"/><line x1="7.8" y1="12" x2="2" y2="12"/><line x1="8.36" y1="9.9" x2="3.34" y2="7"/><line x1="9.9" y1="8.36" x2="7" y2="3.34"/><line x1="12" y1="7.8" x2="12" y2="2"/><line x1="14.1" y1="8.36" x2="17" y2="3.34"/><line x1="15.64" y1="9.9" x2="20.66" y2="7"/>
+      </g>
+      <circle class="body" cx="12" cy="12" r="4.6"/><circle class="eye" cx="10.3" cy="11.5" r=".95"/><circle class="eye" cx="13.7" cy="11.5" r=".95"/>
+    </svg>
+  </div>
+</body></html>
