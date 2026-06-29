@@ -1,7 +1,0 @@
-{
-  "version": "1.2",
-  "build": 2,
-  "downloadURL": "https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg",
-  "notes": "New: \"Claude is waiting on you\" alerts. When a Claude Code session in any terminal needs your approval, the menu-bar mascot shows a count badge plus an on-brand pop, and the panel lists which project is waiting, so you never leave Claude hanging after tabbing away. Opt in from the panel footer. Also: a reliability fix so usage never gets stuck on \"Connecting\".",
-  "minimumSystemVersion": "26.0"
-}

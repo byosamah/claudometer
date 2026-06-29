@@ -33,6 +33,20 @@ final class UpdateChecker: ObservableObject {
     /// product, so we use the team-scoped Vercel domain.)
     private let feedURL = URL(string: "https://claudometer-byosama.vercel.app/updates.json")!
 
+    /// The feed URL with anonymous, non-identifying dimensions appended, so the
+    /// server-side counter can break active-install checks down by app build and
+    /// macOS version. No device id, no identity: just "a build-N app on macOS X
+    /// checked in." The endpoint is a static-shaped JSON feed either way.
+    private var feedRequestURL: URL {
+        guard var c = URLComponents(url: feedURL, resolvingAgainstBaseURL: false) else { return feedURL }
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        c.queryItems = [
+            URLQueryItem(name: "v", value: String(currentBuild)),
+            URLQueryItem(name: "os", value: "\(os.majorVersion).\(os.minorVersion)"),
+        ]
+        return c.url ?? feedURL
+    }
+
     /// Ephemeral + cache-off so a stale CDN copy never masks a fresh release.
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.ephemeral
@@ -54,7 +68,7 @@ final class UpdateChecker: ObservableObject {
         isChecking = true
         defer { isChecking = false; lastChecked = Date() }
 
-        var request = URLRequest(url: feedURL)
+        var request = URLRequest(url: feedRequestURL)
         request.cachePolicy = .reloadIgnoringLocalCacheData
         guard
             let (data, response) = try? await session.data(for: request),
