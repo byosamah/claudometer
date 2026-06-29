@@ -22,10 +22,16 @@ final class AppSettings: ObservableObject {
     /// What the menu bar item shows.
     @Published var menuBarStyle: MenuBarStyle { didSet { defaults.set(menuBarStyle.rawValue, forKey: Keys.menuBarStyle) } }
 
+    /// When true, Claudometer installs Claude Code hooks and alerts (badge + pop)
+    /// whenever a terminal session is waiting on the user. Default false (opt-in,
+    /// since it writes to ~/.claude/settings.json).
+    @Published var questionAlertsEnabled: Bool { didSet { defaults.set(questionAlertsEnabled, forKey: Keys.questionAlerts) } }
+
     private let defaults: UserDefaults
     private enum Keys {
         static let pinNotch = "pinNotch"
         static let menuBarStyle = "menuBarStyle"
+        static let questionAlerts = "questionAlertsEnabled"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -35,5 +41,6 @@ final class AppSettings: ObservableObject {
         pinNotch = defaults.bool(forKey: Keys.pinNotch)   // absent -> false (hidden by default)
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: Keys.menuBarStyle) ?? "")
             ?? .glyphAndPercent
+        questionAlertsEnabled = defaults.bool(forKey: Keys.questionAlerts)   // absent -> false
     }
 }

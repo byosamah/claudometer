@@ -7,11 +7,13 @@ struct UsagePanelView: View {
     @EnvironmentObject private var store: UsageStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var updates: UpdateChecker
+    @EnvironmentObject private var waiting: WaitingStore
 
     var body: some View {
         GlassEffectContainer(spacing: 14) {
             VStack(alignment: .leading, spacing: 14) {
                 header
+                waitingSection
                 content
                 updateRow
                 Divider().opacity(0.5)
@@ -21,6 +23,44 @@ struct UsagePanelView: View {
             .frame(width: GlassTheme.panelWidth, alignment: .leading)
         }
         .glassEffect(.regular, in: .rect(cornerRadius: GlassTheme.panelCorner))
+    }
+
+    // MARK: Waiting sessions (shown only when one or more are blocked on the user)
+
+    @ViewBuilder
+    private var waitingSection: some View {
+        if !waiting.waiting.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Waiting for you", systemImage: "bell.badge.fill")
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Color.mascotCoral)
+                ForEach(waiting.waiting) { session in
+                    HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(session.project)
+                                .font(.system(.subheadline, design: .rounded).weight(.medium))
+                                .lineLimit(1)
+                            Text("waiting \(WaitingStore.elapsed(since: session.since))")
+                                .font(.system(.caption2, design: .rounded))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer(minLength: 0)
+                        Button {
+                            waiting.dismiss(session.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Dismiss")
+                    }
+                }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular, in: .rect(cornerRadius: GlassTheme.controlCorner))
+        }
     }
 
     // MARK: Update banner (only when a newer build is published)
@@ -160,13 +200,25 @@ struct UsagePanelView: View {
     // MARK: Footer — inline toggles
 
     private var footer: some View {
-        VStack(spacing: 8) {
-            Toggle("Pin to notch", isOn: $settings.pinNotch)
-            Toggle("Launch at login", isOn: loginBinding)
+        VStack(spacing: 12) {
+            toggleRow("Alert me when Claude's waiting", isOn: $settings.questionAlertsEnabled)
+            toggleRow("Pin to notch", isOn: $settings.pinNotch)
+            toggleRow("Launch at login", isOn: loginBinding)
+        }
+        .tint(.mascotCoral)
+    }
+
+    /// A settings-style toggle row: the label fills the width and hugs the leading
+    /// edge, which pins every switch to a common trailing column (macOS System
+    /// Settings convention), instead of each row centering on its own content.
+    private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            Text(title)
+                .font(.system(.subheadline, design: .rounded))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .toggleStyle(.switch)
-        .tint(.mascotCoral)
-        .font(.system(.subheadline, design: .rounded))
     }
 
     /// LoginItem is a static AppKit wrapper, not observable; bridge it to a Toggle.

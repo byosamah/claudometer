@@ -9,6 +9,11 @@ import Combine
 enum ClaudometerMain {
     @MainActor
     static func main() {
+        // Hook mode: when Claude Code invokes our own binary as a hook
+        // (`Claudometer --hook notify|clear`), handle it in a short-lived process
+        // and exit BEFORE starting the GUI. Must be the very first thing main does.
+        if QuestionAlerts.handleCLIIfNeeded() { return }
+
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
@@ -24,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = UsageStore()
     private let settings = AppSettings()
     private let updates = UpdateChecker()
+    private let waiting = WaitingStore()
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -39,7 +45,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Menu bar is now the always-on home for the mascot + usage %.
-        menuBar = MenuBarController(store: store, settings: settings, updates: updates)
+        menuBar = MenuBarController(store: store, settings: settings, updates: updates, waiting: waiting)
+
+        // "Claude is waiting on you" alerts are opt-in. The @Published publisher
+        // replays its current value on subscribe, so this both applies the saved
+        // preference at launch and reacts to the footer toggle live. Enabling
+        // (re)installs the Claude Code hook — which also refreshes the bound binary
+        // path if the app moved — and starts the folder watcher; disabling removes
+        // the hook and stops watching.
+        settings.$questionAlertsEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if enabled {
+                        QuestionAlerts.installHook()
+                        self.waiting.start()
+                    } else {
+                        QuestionAlerts.removeHook()
+                        self.waiting.stop()
+                    }
+                }
+            }
+            .store(in: &cancellables)
 
         // The notch HUD is now opt-in: shown only while pinNotch is true. The
         // @Published publisher replays the current value on subscribe, so this
