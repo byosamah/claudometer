@@ -19,7 +19,12 @@ It is built to be **shared**: `package.sh` produces a distributable `.dmg`, a
 zero-dependency `UpdateChecker` polls `claudometer-byosama.vercel.app/updates.json`
 for new builds, and `web/` is the static landing page (live on Vercel; `.dmg` is a
 GitHub Release asset on `github.com/byosamah/claudometer`). See `docs/RELEASING.md`
-for the ship steps. **The feed is no longer a static file**: `/updates.json` is
+for the ship steps. There is NO CI: every release is manual and LOCAL
+(`./package.sh` builds the `.dmg`, `gh release create vX.Y Claudometer.dmg`
+publishes the binary to GitHub Releases, `cd web && vercel --prod --yes` deploys
+the feed); pushing `main` ships nothing. Deploy the site with the LOCAL `vercel`
+CLI (authed as `byosamah`); the Vercel MCP tools 403 on this team's scope.
+**The feed is no longer a static file**: `/updates.json` is
 served by the serverless function `web/api/updates.js` (so bump the version in its
 `FEED` object, not a JSON file), which also best-effort counts each check in Upstash
 Redis (`/api/stats?key=` reads it). The app appends anonymous `?v=&os=` for the
@@ -193,7 +198,8 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   "Starting…". **`LoginItem.swift`** wraps `SMAppService.mainApp`.
 - **Waiting-for-you alerts** (`QuestionAlerts.swift` + `WaitingStore.swift`): opt-in
   via `AppSettings.questionAlertsEnabled`. Enabling safe-merges a Claude Code
-  `Notification`(`permission_prompt`) + `UserPromptSubmit` hook into
+  a `permission_prompt` notify hook + a `clear` hook on
+  PostToolUse/Stop/UserPromptSubmit/SessionEnd into
   `~/.claude/settings.json` (`QuestionAlerts.installHook`; no-op if unchanged). The
   hook command is Claudometer's OWN binary (`--hook notify|clear`, handled at the
   top of `main()` BEFORE NSApplication, parses the event JSON in Swift, no `jq`).
@@ -201,6 +207,8 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   waiting/`; `WaitingStore` polls that folder (1.5s) → menu-bar count badge +
   branded pop + panel "Waiting for you" list. Hook ONLY `permission_prompt`:
   `idle_prompt` fires at every turn-end (noise; alerts the session you're in).
+  Clearing must span all four events because answering a permission prompt is NOT
+  a `UserPromptSubmit` (clearing on that alone leaves the alert stuck).
 
 ## Domain facts that are easy to get wrong
 
