@@ -70,9 +70,21 @@ command sandbox blocks process control + screen capture), leaving a STALE instan
 running while `open` re-activates it — you screenshot the old build and chase
 ghosts. Run launch / kill / capture with the sandbox disabled, and verify the kill
 (`pgrep -f "MacOS/NotchPilot"`) before rebuilding.
+The running instance may even be from a RENAMED/old dir (e.g. a pre-rebrand
+`~/dev/notchpilot`) that no longer exists on disk. `pgrep -fl "MacOS/Claudometer"`
+prints its full PATH; if it isn't THIS repo's, no rebuild touches it (kill it).
 
 For runtime diagnostics, `NSLog`/`log show` was unreliable here; temporarily append
 to a file (`/tmp/notchpilot-debug.log`) and `cat` it for deterministic per-poll evidence.
+
+- **Verifying without the GUI / safely:** bundle id is `com.osama.claudometer`;
+  pre-enable a setting before launch with `defaults write com.osama.claudometer
+  <key> -bool true` (the `@Published` subscriber applies it on launch).
+  `CLAUDOMETER_SETTINGS_PATH=<tmpfile>` redirects the `~/.claude/settings.json`
+  hook-merge to a throwaway file (never mutate the real config in tests). Unit-test
+  pure-Foundation logic standalone: `swiftc Sources/NotchPilot/QuestionAlerts.swift
+  main.swift -o /tmp/t` (top-level code is allowed ONLY in a file named `main.swift`).
+  Use a `-D DEBUG_POLL` compile flag + a `/tmp` log for deterministic per-poll evidence.
 
 - **App icon:** `./icon/build-icns.sh` regenerates `Resources/AppIcon.icns` (the
   coral sunburst mascot) from `icon/Claudometer-1024.png`; `Info.plist` sets
@@ -133,7 +145,8 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   and exposes render-ready values (strings + `sessionFraction`/`weeklyFraction`
   for the meters). Single source of truth the SwiftUI surfaces observe.
 - **`AppSettings.swift`** — `UserDefaults`-backed `ObservableObject`: `pinNotch`
-  (default false = notch hidden) and `menuBarStyle`. The "stay or hide" toggle.
+  (default false = notch hidden), `menuBarStyle`, and `questionAlertsEnabled`
+  (default false = waiting-alerts opt-in).
 - **`MenuBarController.swift`** owns the `NSStatusItem` (mood-tinted `MascotGlyph`
   rendered to `NSImage` via `ImageRenderer`, `isTemplate = false` so it keeps the
   coral instead of being template-tinted, + `%` title). Left-click toggles an anchored Liquid Glass
@@ -174,6 +187,16 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   sparse PATH, so an npm/Homebrew `claude` shebang can't find `node`), and the
   watchdog escalates SIGTERM→SIGKILL so a wedged ping never pins `isWaking` on
   "Starting…". **`LoginItem.swift`** wraps `SMAppService.mainApp`.
+- **Waiting-for-you alerts** (`QuestionAlerts.swift` + `WaitingStore.swift`): opt-in
+  via `AppSettings.questionAlertsEnabled`. Enabling safe-merges a Claude Code
+  `Notification`(`permission_prompt`) + `UserPromptSubmit` hook into
+  `~/.claude/settings.json` (`QuestionAlerts.installHook`; no-op if unchanged). The
+  hook command is Claudometer's OWN binary (`--hook notify|clear`, handled at the
+  top of `main()` BEFORE NSApplication, parses the event JSON in Swift, no `jq`).
+  It writes a per-session marker to `~/Library/Application Support/Claudometer/
+  waiting/`; `WaitingStore` polls that folder (1.5s) → menu-bar count badge +
+  branded pop + panel "Waiting for you" list. Hook ONLY `permission_prompt`:
+  `idle_prompt` fires at every turn-end (noise; alerts the session you're in).
 
 ## Domain facts that are easy to get wrong
 
@@ -205,6 +228,13 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   All polling MUST go through `UsageStore.refresh()`, which owns the `isPolling`
   single-flight guard; never call `UsageService.currentState()` from a new path,
   or a manual poll + the loop can fire two concurrent requests and self-trip 429.
+- **A stuck "Connecting…" is almost never a code bug.** Two self-inflicted
+  dev-loop causes: a STALE/renamed-dir instance (see the Build/run gotcha), or a
+  429 from rapid relaunches. Confirm with ONE curl mirroring the app: `security
+  find-generic-password -s "Claude Code-credentials" -w` → extract `accessToken` →
+  `curl -H "Authorization: Bearer …" -H "anthropic-beta: oauth-2025-04-20"
+  …/api/oauth/usage`. 200 = stale/renamed instance; 429 = STOP relaunching and wait
+  (it self-clears; each relaunch restarts the cooldown).
 
 ## Operational / trust-model notes
 
