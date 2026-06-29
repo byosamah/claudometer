@@ -188,6 +188,7 @@ enum TokenError: Error, Sendable, Equatable {
     case keychainDenied        // empty stdout: prompt denied or item missing -> .needsAuth
     case securityFailed(Int32) // non-zero exit from security
     case malformedJSON         // stdout was not the expected JSON envelope
+    case timedOut              // security hung past the watchdog -> .offline (transient blip)
 }
 
 struct TokenProvider: Sendable {
@@ -235,10 +236,34 @@ struct TokenProvider: Sendable {
                 throw TokenError.binaryNotFound
             }
 
+            // Watchdog: a granted ACL makes this read near-instant (~0.02s), but a
+            // locked keychain or a wedged keychain subsystem can block `security`
+            // with no end. The poll loop is single-flight (isPolling), so ONE infinite
+            // read freezes the whole app on "Connecting…" forever. Bound it: SIGTERM at
+            // a generous deadline (long enough never to cut off a first-run "Always
+            // Allow" dialog), SIGKILL if it resists, then report the timeout so the
+            // poller treats it as a transient blip and retries. Killing `security`
+            // closes the pipe, which also unblocks the readToEnd() below.
+            let killed = TimeoutFlag()
+            let forceKill = DispatchWorkItem {
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            }
+            let watchdog = DispatchWorkItem {
+                if process.isRunning {
+                    killed.set()
+                    process.terminate()                                 // SIGTERM
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 2, execute: forceKill)
+                }
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 60, execute: watchdog)
+
             // Read stdout to EOF BEFORE waiting, so a full pipe buffer can never
             // deadlock the process.
             let data = (try? outPipe.fileHandleForReading.readToEnd()) ?? Data()
             process.waitUntilExit()
+            watchdog.cancel()
+
+            if killed.get() { throw TokenError.timedOut }
             return (data, process.terminationStatus)
         }.value
     }
@@ -314,6 +339,11 @@ struct UsageService: Sendable {
             token = try await tokenProvider.accessToken()
         } catch TokenError.binaryNotFound {
             return .noBinary
+        } catch TokenError.timedOut {
+            // Keychain stalled past the watchdog. This is a transient fault, not a
+            // missing credential, so surface it as offline (holds the last-good
+            // reading and retries soon), never as needsAuth.
+            return .offline
         } catch {
             return .needsAuth
         }

@@ -78,9 +78,10 @@ enum SessionStarter {
     }
 }
 
-/// A tiny lock-guarded bool so the watchdog (on a global queue) can flag a kill
-/// that `waitUntilExit()` (on the detached task) then reads, without a data race.
-private final class TimeoutFlag: @unchecked Sendable {
+/// A tiny lock-guarded bool so a watchdog (on a global queue) can flag a kill
+/// that the detached task then reads, without a data race. Shared by both
+/// subprocess paths: `SessionStarter.openWindow` and `TokenProvider.runSecurity`.
+final class TimeoutFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var value = false
     func set() { lock.lock(); value = true; lock.unlock() }
