@@ -19,7 +19,11 @@ It is built to be **shared**: `package.sh` produces a distributable `.dmg`, a
 zero-dependency `UpdateChecker` polls `claudometer-byosama.vercel.app/updates.json`
 for new builds, and `web/` is the static landing page (live on Vercel; `.dmg` is a
 GitHub Release asset on `github.com/byosamah/claudometer`). See `docs/RELEASING.md`
-for the ship steps. (`claudometer.vercel.app` is an unrelated product, hence the
+for the ship steps. **The feed is no longer a static file**: `/updates.json` is
+served by the serverless function `web/api/updates.js` (so bump the version in its
+`FEED` object, not a JSON file), which also best-effort counts each check in Upstash
+Redis (`/api/stats?key=` reads it). The app appends anonymous `?v=&os=` for the
+per-build breakdown. (`claudometer.vercel.app` is an unrelated product, hence the
 team-scoped domain.)
 
 Design rationale:

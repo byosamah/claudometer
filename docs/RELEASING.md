@@ -60,11 +60,34 @@ domain, update that `feedURL`, rebuild, and re-cut the release.
 
 1. Bump the version in `Info.plist`: raise `CFBundleVersion` (the build number,
    e.g. 1 → 2) and usually `CFBundleShortVersionString` (e.g. 1.0 → 1.1).
-2. Update `web/updates.json` to the **same** `version` + `build`.
+2. Update the `FEED` object in **`web/api/updates.js`** to the **same** `version` +
+   `build` + notes. (This is the serverless feed; the old static `web/updates.json`
+   was replaced by it so each check can be counted, see below.)
 3. `./package.sh`
 4. `gh release create v1.1 Claudometer.dmg --title "Claudometer 1.1" --notes "..."`
-5. Redeploy the site (`cd web && vercel --prod`) so the new `updates.json` is
-   live. Installed apps then show "Update available · v1.1".
+5. Redeploy the site (`cd web && vercel --prod`) so the new feed is live. Installed
+   apps then show "Update available · v1.1".
+
+## 5. Analytics: active-install counter + landing-page analytics
+
+`/updates.json` is served by `web/api/updates.js`, which best-effort counts each
+check (total, per app build, per day) in **Upstash Redis** via REST (no npm deps).
+It is a no-op until you link a store, and counting never blocks the feed.
+
+One-time provisioning (dashboard, free tier):
+1. Vercel → the **claudometer** project → **Storage** → Create → **Upstash for
+   Redis** → connect to the project. This injects `KV_REST_API_URL` +
+   `KV_REST_API_TOKEN` (the function also accepts `UPSTASH_REDIS_REST_URL/TOKEN`).
+2. Add a project env var **`STATS_KEY`** = a random secret (for the read endpoint).
+3. Redeploy (`cd web && vercel --prod`) so the function sees the new env vars.
+
+Then read the counts at
+`https://claudometer-byosama.vercel.app/api/stats?key=<STATS_KEY>`
+(`{ totalChecks, byBuild, byDay }`). The app appends `?v=<build>&os=<ver>` so
+`byBuild` fills in for 1.3+; 1.2 and earlier count as build `unknown`.
+
+Landing-page analytics: enable **Web Analytics** on the same project (Analytics
+tab) for pageviews + the `download` conversion event wired in `web/main.js`.
 
 ## Going from free to signed (when you're ready)
 
