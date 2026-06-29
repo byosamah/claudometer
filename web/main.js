@@ -108,3 +108,10 @@ function mdLite(t) {
   if (inList) html += '</ul>';
   return html;
 }
+
+// Vercel Web Analytics: count "Download" clicks as a conversion event (pageviews
+// are tracked automatically by /_vercel/insights/script.js). No-ops until Web
+// Analytics is enabled for the project; stores no personal data.
+for (const a of document.querySelectorAll('a[href*="releases/latest/download"]')) {
+  a.addEventListener('click', () => { if (window.va) window.va('event', { name: 'download' }); });
+}
