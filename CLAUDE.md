@@ -259,6 +259,12 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
 - **The login item binds to the bundle path** at first registration, so moving
   `NotchPilot.app` out of its built location breaks auto-launch until it is
   re-run (and re-registered) from the new path.
+- **Gatekeeper unblock on macOS 26 (un-notarized `.dmg`).** The "Apple could not
+  verify" dialog has NO working Open button, and right-click → Open was removed on
+  macOS 15/26, so that old advice is wrong. The only unblock is System Settings →
+  Privacy & Security → "Open Anyway" (or `xattr -dr com.apple.quarantine
+  Claudometer.app`). The FAQ + STEP 03 in `web/index.html` must reflect this until
+  builds are notarized.
 
 ## Conventions
 
