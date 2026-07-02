@@ -2,31 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleIdentifier</key>
-	<string>com.osama.claudometer</string>
-	<key>CFBundleExecutable</key>
-	<string>Claudometer</string>
-	<key>CFBundleName</key>
-	<string>Claudometer</string>
 	<key>CFBundleDisplayName</key>
+	<string>Claudometer</string>
+	<key>CFBundleExecutable</key>
 	<string>Claudometer</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.osama.claudometer</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Claudometer</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2</string>
+	<string>1.3</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>LSUIElement</key>
-	<true/>
+	<string>3</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
+	<key>LSUIElement</key>
+	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>

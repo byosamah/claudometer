@@ -10,15 +10,16 @@
 // Single source of truth for the published build. BUMP THIS ON EVERY RELEASE
 // (this replaced the old static web/updates.json; see docs/RELEASING.md).
 const FEED = {
-  version: "1.2",
-  build: 2,
+  version: "1.3",
+  build: 3,
   downloadURL: "https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg",
   notes:
-    'New: "Claude is waiting on you" alerts. When a Claude Code session in any ' +
-    "terminal needs your approval, the menu-bar mascot shows a count badge plus an " +
-    "on-brand pop, and the panel lists which project is waiting, so you never leave " +
-    'Claude hanging after tabbing away. Opt in from the panel footer. Also: a ' +
-    'reliability fix so usage never gets stuck on "Connecting".',
+    "New: a guided setup walkthrough. If Claudometer isn't connected yet, the panel " +
+    "now walks you through the three steps (install Claude Code, sign in, allow " +
+    "Keychain access) with live checkmarks and tells you exactly what's blocking the " +
+    "connection instead of a stuck \"Connecting\". Also: left-clicking the menu bar " +
+    "icon now closes the panel, your ~/.claude/settings.json can never be clobbered " +
+    "by the alerts feature, plus 15 more reliability fixes across the app.",
   minimumSystemVersion: "26.0",
 };
 
