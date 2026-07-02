@@ -47,11 +47,12 @@ vercel login          # one-time
 vercel --prod
 ```
 
-The project is named **claudometer**. Because `claudometer.vercel.app` is owned by
-an unrelated product, the live URL is the team-scoped
-**https://claudometer-byosama.vercel.app**, which is what the app's `feedURL`
-(`Sources/NotchPilot/UpdateChecker.swift`) points at. If you later add a custom
-domain, update that `feedURL`, rebuild, and re-cut the release.
+The project is named **claudometer**. The canonical live URL is the custom
+domain **https://claudometer.osama.me**, which is what the app's `feedURL`
+(`Sources/NotchPilot/UpdateChecker.swift`) points at. The older team-scoped
+**claudometer-byosama.vercel.app** stays aliased to the same deployment so
+builds shipped before the domain switch (<= v1.3 first cut) keep updating;
+never remove that alias. (`claudometer.vercel.app` is an unrelated product.)
 
 > Deployment protection is disabled on this project so the public can reach the
 > page. Re-run `vercel --prod` from `web/` to redeploy after changes.
@@ -82,7 +83,7 @@ One-time provisioning (dashboard, free tier):
 3. Redeploy (`cd web && vercel --prod`) so the function sees the new env vars.
 
 Then read the counts at
-`https://claudometer-byosama.vercel.app/api/stats?key=<STATS_KEY>`
+`https://claudometer.osama.me/api/stats?key=<STATS_KEY>`
 (`{ totalChecks, byBuild, byDay }`). The app appends `?v=<build>&os=<ver>` so
 `byBuild` fills in for 1.3+; 1.2 and earlier count as build `unknown`.
 

@@ -21,7 +21,7 @@ when the user flips "Pin to notch" (the toggle lives in the panel footer and the
 right-click menu).
 
 It is built to be **shared**: `package.sh` produces a distributable `.dmg`, a
-zero-dependency `UpdateChecker` polls `claudometer-byosama.vercel.app/updates.json`
+zero-dependency `UpdateChecker` polls `claudometer.osama.me/updates.json`
 for new builds, and `web/` is the static landing page (live on Vercel; `.dmg` is a
 GitHub Release asset on `github.com/byosamah/claudometer`). See `docs/RELEASING.md`
 for the ship steps. There is NO CI: every release is manual and LOCAL
@@ -33,8 +33,40 @@ CLI (authed as `byosamah`); the Vercel MCP tools 403 on this team's scope.
 served by the serverless function `web/api/updates.js` (so bump the version in its
 `FEED` object, not a JSON file), which also best-effort counts each check in Upstash
 Redis (`/api/stats?key=` reads it). The app appends anonymous `?v=&os=` for the
-per-build breakdown. (`claudometer.vercel.app` is an unrelated product, hence the
-team-scoped domain.)
+per-build breakdown. Canonical domain: **claudometer.osama.me**; the team-scoped
+`claudometer-byosama.vercel.app` stays aliased to the same deployment so builds
+shipped before the domain switch keep updating — never remove that alias.
+(`claudometer.vercel.app` is an unrelated product.)
+
+## Ship every product change (default workflow)
+
+**"Done" means "in users' hands", not "committed to main."** Pushing `main`
+ships NOTHING (no CI), so when a session lands verified product changes — Swift
+app, `web/`, or the feed — finish by shipping them the same session, unless the
+user explicitly says to hold or the work is experimental:
+
+1. **Verify first** (never ship unverified): strict typecheck, `./build.sh`,
+   relaunch, screenshot the affected surface. Exercise the first-run path with
+   `CLAUDOMETER_KEYCHAIN_SERVICE=<nonexistent>` when onboarding is touched.
+2. **Commit the work**, then a separate `release: vX.Y (build N)` commit that
+   bumps BOTH `Info.plist` (`CFBundleShortVersionString` + `CFBundleVersion`)
+   AND the `FEED` object in `web/api/updates.js` to the same version/build.
+   Push `main`.
+3. `./package.sh` (sandbox disabled: hdiutil).
+4. `gh release create vX.Y Claudometer.dmg --title "Claudometer X.Y" --notes
+   "..."` — the asset name is constant so `releases/latest/download/` links
+   never break; the notes render on the site changelog (use "- " lists).
+5. `cd web && vercel --prod --yes` so the feed advertises the new build.
+6. **Verify the ship end-to-end, never assume**: `curl` the live
+   `updates.json` (new build number), re-download the release asset and
+   `shasum -a 256`-compare it against the local `.dmg`, `hdiutil attach` it and
+   check the inner bundle's version + `codesign --verify`, then relaunch the
+   local app so this Mac runs what users run.
+
+Scope it down when the change is narrower: web-only changes (landing page copy,
+stats endpoint) need only commit + push + `vercel --prod` — no version bump, no
+release. App-behavior changes need the full flow. If only release NOTES were
+wrong, `gh release edit` suffices.
 
 Design rationale:
 - Original: `docs/superpowers/specs/2026-06-28-notchpilot-design.md`.

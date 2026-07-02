@@ -29,9 +29,10 @@ final class UpdateChecker: ObservableObject {
     @Published private(set) var isChecking = false
 
     /// The feed lives on the landing-page host, on purpose a different origin
-    /// from the usage API. (claudometer.vercel.app is taken by an unrelated
-    /// product, so we use the team-scoped Vercel domain.)
-    private let feedURL = URL(string: "https://claudometer-byosama.vercel.app/updates.json")!
+    /// from the usage API. Canonical domain is claudometer.osama.me; the older
+    /// team-scoped claudometer-byosama.vercel.app stays aliased to the same
+    /// deployment, so builds shipped before the domain switch keep updating.
+    private let feedURL = URL(string: "https://claudometer.osama.me/updates.json")!
 
     /// The feed URL with anonymous, non-identifying dimensions appended, so the
     /// server-side counter can break active-install checks down by app build and
