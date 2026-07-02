@@ -45,8 +45,11 @@ Nothing is ever sent to the developer.
 1. Download `Claudometer.dmg` from the [latest release](https://github.com/byosamah/claudometer/releases/latest).
 2. Open the DMG and drag **Claudometer** to **Applications**.
 3. Early-access builds are not notarized yet, so the first launch shows a
-   Gatekeeper warning. **Right-click the app → Open**, then confirm. (Once signed
-   builds ship, this step goes away.)
+   Gatekeeper warning (right-click → Open no longer works on macOS 26). Instead:
+   double-click Claudometer, click **Done**, then open **System Settings →
+   Privacy & Security** and click **Open Anyway** next to Claudometer. Confirm
+   once and it launches normally from then on. (Once signed builds ship, this
+   step goes away.)
 
 ## Build from source
 

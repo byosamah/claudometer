@@ -6,9 +6,20 @@ import Foundation
 enum ConnectionState: Sendable, Equatable {
     case ok(UsageSnapshot)
     case needsAuth        // 401, or no usable token in the Keychain
-    case offline          // URLError / timeout / unreadable response
+    case offline(OfflineReason)   // transient fault; the reason drives honest guidance
     case noBinary         // /usr/bin/security could not be launched
     case rateLimited(retryAfter: TimeInterval?)  // HTTP 429 — back off HARD, never fast-retry
+}
+
+/// Why we are offline. All of these are retried the same way; the reason exists
+/// so a never-connected user gets told WHAT is blocking setup (a pending
+/// Keychain dialog reads very differently from a dead network) instead of an
+/// unexplained "Connecting…".
+enum OfflineReason: Sendable, Equatable {
+    case network          // URLError: no internet, or Anthropic unreachable
+    case keychainStalled  // `security` hung past the watchdog (ACL dialog pending?)
+    case httpError(Int)   // unexpected HTTP status (e.g. an account without usage access)
+    case badResponse      // non-HTTP response, or 2xx with an undecodable body
 }
 
 // MARK: - Severity
@@ -192,7 +203,12 @@ enum TokenError: Error, Sendable, Equatable {
 }
 
 struct TokenProvider: Sendable {
-    var service: String = "Claude Code-credentials"
+    // CLAUDOMETER_KEYCHAIN_SERVICE redirects the Keychain lookup (same dev-only
+    // pattern as CLAUDOMETER_SETTINGS_PATH): pointing it at a nonexistent item
+    // exercises the real first-run / signed-out path on a signed-in machine.
+    // Absent in normal use -> the Claude Code credential.
+    var service: String = ProcessInfo.processInfo.environment["CLAUDOMETER_KEYCHAIN_SERVICE"]
+        ?? "Claude Code-credentials"
     var securityPath: String = "/usr/bin/security"
 
     /// Reads + parses the token. On first run macOS shows a Keychain prompt for
@@ -301,13 +317,13 @@ struct UsageClient: Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                return .offline
+                return .offline(.badResponse)
             }
 
             switch http.statusCode {
             case 200..<300:
                 guard let raw = try? JSONDecoder().decode(RawUsageResponse.self, from: data) else {
-                    return .offline
+                    return .offline(.badResponse)
                 }
                 return .ok(UsageSnapshot.make(from: raw))
             case 401:
@@ -316,12 +332,12 @@ struct UsageClient: Sendable {
                 let ra = http.value(forHTTPHeaderField: "Retry-After").flatMap { TimeInterval($0) }
                 return .rateLimited(retryAfter: ra)
             default:
-                return .offline
+                return .offline(.httpError(http.statusCode))
             }
         } catch is URLError {
-            return .offline
+            return .offline(.network)
         } catch {
-            return .offline
+            return .offline(.network)
         }
     }
 }
@@ -342,8 +358,9 @@ struct UsageService: Sendable {
         } catch TokenError.timedOut {
             // Keychain stalled past the watchdog. This is a transient fault, not a
             // missing credential, so surface it as offline (holds the last-good
-            // reading and retries soon), never as needsAuth.
-            return .offline
+            // reading and retries soon), never as needsAuth. The reason lets the
+            // setup card tell a first-run user to look for the ACL dialog.
+            return .offline(.keychainStalled)
         } catch {
             return .needsAuth
         }

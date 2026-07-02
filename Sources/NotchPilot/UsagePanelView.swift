@@ -127,7 +127,7 @@ struct UsagePanelView: View {
                       color: .secondary)
             }
             actionArea
-        } else if store.needsOnboarding {
+        } else if store.needsWalkthrough {
             OnboardingView()
         } else {
             Text(store.statusText)

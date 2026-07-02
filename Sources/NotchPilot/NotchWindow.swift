@@ -69,7 +69,13 @@ final class NotchHoverContainer: NSView {
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
-    @objc private func toggleLogin() { _ = LoginItem.toggle() }
+    @objc private func toggleLogin() {
+        _ = LoginItem.toggle()
+        // Same as the menu bar path: when macOS requires explicit approval the
+        // toggle can't take effect on its own, so deep-link to Login Items
+        // instead of letting the menu title silently snap back.
+        if LoginItem.needsApproval { LoginItem.openLoginItemsSettings() }
+    }
 }
 
 // MARK: - Notch geometry, derived purely from NSScreen

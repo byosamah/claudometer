@@ -91,9 +91,45 @@ enum QuestionAlerts {
                 try? out.write(to: file, options: .atomic)
             }
         case "clear":
+            // The clear hooks run async, so Claude Code doesn't wait for them: a
+            // clear spawned at PostToolUse can still be paying dyld startup when a
+            // NEWER permission prompt writes its marker milliseconds later, and an
+            // unconditional delete would silently eat that genuine alert. Only
+            // remove a marker that already existed when this process was spawned;
+            // a younger marker belongs to the newer prompt and must survive (the
+            // session's next turn event clears it normally).
+            if let spawned = processStartTime,
+               let mtime = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date,
+               mtime > spawned {
+                return
+            }
             try? FileManager.default.removeItem(at: file)
         default:
             break
+        }
+    }
+
+    /// This process's kernel-recorded start time (sysctl KERN_PROC), used as the
+    /// generation stamp for the clear-vs-notify race above. `nil` on any sysctl
+    /// failure, in which case clear falls back to the old unconditional delete.
+    private static var processStartTime: Date? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        let tv = info.kp_proc.p_starttime
+        return Date(timeIntervalSince1970: Double(tv.tv_sec) + Double(tv.tv_usec) / 1_000_000)
+    }
+
+    /// Delete every waiting marker. Used when alerts are switched off: the clear
+    /// hooks that would normally remove an answered session's marker are gone at
+    /// that point, so anything left on disk would resurrect as a ghost
+    /// "Waiting for you" alert the next time alerts are enabled.
+    static func clearAllMarkers() {
+        let fm = FileManager.default
+        guard let urls = try? fm.contentsOfDirectory(at: waitingDir, includingPropertiesForKeys: nil) else { return }
+        for url in urls where url.pathExtension == "json" {
+            try? fm.removeItem(at: url)
         }
     }
 
@@ -101,7 +137,7 @@ enum QuestionAlerts {
 
     /// True if our hook entries are currently present in the user's settings.
     static var isInstalled: Bool {
-        guard let hooks = readSettings()["hooks"] as? [String: Any] else { return false }
+        guard let hooks = (readSettingsForMerge() ?? [:])["hooks"] as? [String: Any] else { return false }
         for event in managedEvents {
             if let groups = hooks[event] as? [[String: Any]], groups.contains(where: groupIsOurs) {
                 return true
@@ -115,7 +151,9 @@ enum QuestionAlerts {
     /// path), then appends, leaving every other key and hook untouched.
     static func installHook() {
         let exe = shellQuoted(executablePath)
-        var root = readSettings()
+        // A present-but-unparseable settings file must abort the install: writing
+        // a merge based on an empty dict would wipe the user's whole config.
+        guard var root = readSettingsForMerge() else { return }
         var hooks = stripOurEntries(from: (root["hooks"] as? [String: Any]) ?? [:])
 
         // Only `permission_prompt` — Claude is genuinely BLOCKED needing your
@@ -149,7 +187,7 @@ enum QuestionAlerts {
     /// touches — let alone reformats — the user's settings file.
     static func removeHook() {
         guard isInstalled else { return }
-        var root = readSettings()
+        guard var root = readSettingsForMerge() else { return }
         guard let hooks = root["hooks"] as? [String: Any] else { return }
         let stripped = stripOurEntries(from: hooks)
         if stripped.isEmpty { root.removeValue(forKey: "hooks") } else { root["hooks"] = stripped }
@@ -193,10 +231,19 @@ enum QuestionAlerts {
         cmd.contains("--hook notify") || cmd.contains("--hook clear")
     }
 
-    private static func readSettings() -> [String: Any] {
-        guard let data = try? Data(contentsOf: claudeSettingsURL),
+    /// Reads the settings file for a read-modify-write merge. Distinguishes two
+    /// very different "can't read" cases:
+    ///   - The file does not exist -> `[:]` (a fresh start; writing is safe).
+    ///   - The file EXISTS but can't be read or parsed as a JSON object (syntax
+    ///     error, merge-conflict markers, truncated write, permissions) -> `nil`.
+    ///     Merging into an empty dict and writing back would REPLACE the user's
+    ///     entire config with only our hooks, so callers must abort instead.
+    private static func readSettingsForMerge() -> [String: Any]? {
+        let url = claudeSettingsURL
+        guard FileManager.default.fileExists(atPath: url.path) else { return [:] }
+        guard let data = try? Data(contentsOf: url),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        else { return [:] }
+        else { return nil }
         return obj
     }
 

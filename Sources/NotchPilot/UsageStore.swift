@@ -11,9 +11,17 @@ import SwiftUI
 @MainActor
 final class UsageStore: ObservableObject {
 
-    @Published private(set) var state: ConnectionState = .offline
+    @Published private(set) var state: ConnectionState = .offline(.network)
     @Published private(set) var mascot: MascotState = .dormant
     @Published private(set) var isWaking: Bool = false
+    /// True once ANY poll has proven a readable Claude credential (the Keychain
+    /// read succeeded), even if the usage fetch itself then failed. Drives the
+    /// setup walkthrough's "signed in" / "keychain allowed" checkmarks.
+    @Published private(set) var tokenSeen = false
+    /// Persisted "this Mac has shown real usage at least once." A user who has
+    /// never connected gets the guided setup card for ANY failure state; a user
+    /// who has connected before just sees the honest status line on blips.
+    @Published private(set) var hasConnectedBefore: Bool
     /// Set when a Start-Window ping fails, so the panel can say so instead of
     /// silently reverting to the Start button.
     @Published private(set) var startError: String?
@@ -40,6 +48,14 @@ final class UsageStore: ObservableObject {
     /// How often to re-check usage when healthy. Utilization moves slowly.
     private let pollInterval: Duration = .seconds(60)
 
+    private let defaults: UserDefaults
+    private static let hasConnectedKey = "hasConnectedBefore"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        hasConnectedBefore = defaults.bool(forKey: Self.hasConnectedKey)
+    }
+
     // MARK: Lifecycle
 
     func start() {
@@ -62,9 +78,16 @@ final class UsageStore: ObservableObject {
             // NEVER fast-retry a 429 — that perpetuates it. Wait it out (respect
             // Retry-After if present), clamped to a sane 60…300s window.
             return .seconds(min(300, max(60, retryAfter ?? 90)))
-        case .offline, .needsAuth, .noBinary:
+        case .offline, .noBinary:
             // transient: heal fast with a bounded 4 → 8 → 16 → 32 → 60s backoff.
             return .seconds(min(60, 4 << min(max(failureStreak - 1, 0), 4)))
+        case .needsAuth:
+            // Each Keychain read can re-trigger the macOS "allow access" dialog
+            // when the user hasn't clicked "Always Allow" yet, so a fast retry
+            // storms dialogs at the exact moment a new user is most confused.
+            // Retry gently (15 → 30 → 60 → 120s); the setup card's Recheck
+            // button gives an instant manual path after signing in.
+            return .seconds(min(120, 15 << min(max(failureStreak - 1, 0), 3)))
         }
     }
 
@@ -73,10 +96,21 @@ final class UsageStore: ObservableObject {
         wakeTask?.cancel(); wakeTask = nil
     }
 
-    /// Manual one-shot refresh (used after starting a window). Guarded so an
-    /// in-flight refresh is never doubled.
+    /// Manual one-shot refresh (the walkthrough's Recheck, the post-Start poll).
+    /// Guarded so an in-flight refresh is never doubled, AND a no-op while
+    /// rate-limited: every request during a 429 restarts the cooldown, so no
+    /// manual path may fire one (the poll loop's 60-300s pacing is the only way
+    /// out of a 429).
     func poll() {
+        if case .rateLimited = state { return }
         Task { [weak self] in await self?.refresh() }
+    }
+
+    /// True while the API has us in a 429 cooldown; the walkthrough disables its
+    /// Recheck button on this (the diagnosis box explains the wait).
+    var isRateLimited: Bool {
+        if case .rateLimited = state { return true }
+        return false
     }
 
     /// The single-flight point for BOTH the periodic loop and the manual poll().
@@ -103,6 +137,11 @@ final class UsageStore: ObservableObject {
             lastGood = snap
             failureStreak = 0
             reconnecting = false
+            tokenSeen = true
+            if !hasConnectedBefore {
+                hasConnectedBefore = true
+                defaults.set(true, forKey: Self.hasConnectedKey)
+            }
             state = .ok(snap)
             // A confirmed-open window clears any stale Start error, so an old
             // "claude not found" / "timed out" can't resurface beside a fresh
@@ -111,6 +150,26 @@ final class UsageStore: ObservableObject {
             if !isWaking { mascot = Self.mascotState(for: state) }
             return
         }
+
+        // Track whether the Keychain step has ever succeeded: any result past
+        // the token read (a fetch that errored, a 429) still proves the
+        // credential is readable. A confirmed needsAuth un-proves it.
+        switch next {
+        case .rateLimited:
+            tokenSeen = true
+        case .offline(let reason) where reason != .keychainStalled:
+            tokenSeen = true
+        case .needsAuth:
+            tokenSeen = false
+        default:
+            break
+        }
+
+        // A confirmed 401 / missing credential means the login is gone. Holding
+        // (or later resurrecting) the pre-revocation snapshot would paper over
+        // "sign in" with a live-looking percentage, so drop it: only a NEW good
+        // poll may show data again.
+        if case .needsAuth = next { lastGood = nil }
 
         let holdable: Bool = {
             switch next { case .offline, .rateLimited: return true; default: return false }
@@ -192,13 +251,65 @@ final class UsageStore: ObservableObject {
     /// "currently the binding limit," not "window open."
     var hasOpenWindow: Bool { snapshot?.sessionHasUsage ?? false }
 
-    /// Show the "connect your Claude" onboarding card when there is no usable
-    /// credential yet. `.needsAuth` covers both "no token in the Keychain" and a
-    /// 401; that is exactly the first-run, not-connected case. (`.noBinary` is a
-    /// rarer environment fault and keeps its own honest status line.)
-    var needsOnboarding: Bool {
+    /// Show the guided "connect your Claude" walkthrough. Always for a missing or
+    /// revoked credential, and for EVERY failure state while this Mac has never
+    /// connected: a brand-new install stuck behind a Keychain dialog, a network
+    /// blip, or an API error needs step-by-step guidance, not a bare
+    /// "Connecting…" it can't act on. Once real data has shown at least once,
+    /// transient failures go back to the short honest status line.
+    var needsWalkthrough: Bool {
+        if case .ok = state { return false }
         if case .needsAuth = state { return true }
-        return false
+        return !hasConnectedBefore
+    }
+
+    /// What is blocking the connection right now, in plain words, plus what to do
+    /// about it. `nil` while the very first poll is still in flight, and when the
+    /// numbered steps already carry the message (no Claude Code installed yet).
+    var setupProblem: (title: String, detail: String)? {
+        if !loadedOnce { return nil }
+        switch state {
+        case .ok:
+            return nil
+        case .needsAuth:
+            guard claudeInstalled else { return nil }   // step 1 already says "install"
+            return ("No Claude login found yet",
+                    "Run \u{201C}claude\u{201D} in Terminal and sign in, then hit Recheck. "
+                    + "If macOS asked about the Keychain and you clicked Deny, "
+                    + "Recheck and choose Always Allow this time.")
+        case .noBinary:
+            return ("Keychain tool unavailable",
+                    "macOS wouldn't launch /usr/bin/security, which Claudometer "
+                    + "uses to read your Claude login. A restart usually clears this.")
+        case .rateLimited:
+            return ("Rate-limited by Anthropic",
+                    "Too many checks in a short burst. This clears on its own in a "
+                    + "minute or two; no action needed.")
+        case .offline(let reason):
+            switch reason {
+            case .keychainStalled:
+                return ("Waiting for Keychain access",
+                        "macOS is showing a dialog about \u{201C}Claude Code-credentials\u{201D}. "
+                        + "Click Always Allow so Claudometer can read your Claude login.")
+            case .network:
+                return ("Can't reach Anthropic",
+                        "Check your internet connection. Claudometer keeps retrying on its own.")
+            case .httpError(let code) where code >= 500:
+                // A 5xx is Anthropic's outage, never the user's login; blaming
+                // their account type here would misdirect them into re-authing.
+                return ("Anthropic returned an error (HTTP \(code))",
+                        "Anthropic's usage service is having trouble right now. "
+                        + "Claudometer keeps retrying on its own.")
+            case .httpError(let code):
+                return ("Anthropic returned an error (HTTP \(code))",
+                        "Usage needs a Claude subscription login (Max or Pro) in Claude "
+                        + "Code. An API-key-only login can't read usage limits.")
+            case .badResponse:
+                return ("Unexpected response from Anthropic",
+                        "The usage API sent something Claudometer couldn't read. "
+                        + "It keeps retrying on its own.")
+            }
+        }
     }
 
     /// Whether the Claude Code CLI is present on disk, so the onboarding card can
@@ -244,10 +355,18 @@ final class UsageStore: ObservableObject {
         switch state {
         case .needsAuth: return "Open Claude Code to sign in"
         case .noBinary:  return "Keychain unavailable"
-        // No lastGood yet => we've simply never connected (still trying), which is
-        // gentler than "Offline". A real "Offline" only shows after a >10min outage.
-        case .offline:   return lastGood == nil ? "Connecting…" : "Offline · retrying"
-        case .rateLimited: return "Connecting…"   // only reached before we ever have data
+        // No lastGood yet => we've never connected; say what's actually blocking
+        // us instead of an unexplained "Connecting…". A real "Offline" only shows
+        // after a >10min outage.
+        case .offline(let reason):
+            guard lastGood == nil else { return "Offline · retrying" }
+            switch reason {
+            case .keychainStalled:   return "Waiting for Keychain access…"
+            case .network:           return "Connecting…"
+            case .httpError(let c):  return "Anthropic error (HTTP \(c))"
+            case .badResponse:       return "Unexpected API response"
+            }
+        case .rateLimited: return "Rate-limited · retrying soon"   // only before we ever have data
         case .ok:        return ""
         }
     }

@@ -63,6 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.waiting.start()
                     } else {
                         QuestionAlerts.removeHook()
+                        // With the clear hooks gone, any marker still on disk can
+                        // never be cleared by answering; sweep now so it doesn't
+                        // resurrect as a ghost alert on re-enable.
+                        QuestionAlerts.clearAllMarkers()
                         self.waiting.stop()
                     }
                 }

@@ -50,19 +50,35 @@ module.exports = async (req, res) => {
 
   // Anonymous dimensions newer app builds append (?v=<build>&os=<major.minor>).
   // The current 1.2 build sends none -> counted as build "unknown". Nothing here
-  // identifies a device or user.
+  // identifies a device or user. `v` is attacker-controlled input: the app only
+  // ever sends a small integer (CFBundleVersion), so anything else collapses to
+  // "unknown" instead of minting a fresh Redis key per junk value.
   const q = new URL(req.url, "https://x").searchParams;
-  const build = (q.get("v") || "unknown").replace(/[^\w.]/g, "").slice(0, 16) || "unknown";
+  const raw = q.get("v") || "";
+  // Also bound by the newest PUBLISHED build: no real install can run a build
+  // above it, so numeric junk (v=100..163) can't fill the Lua gate's 64-slot
+  // set and freeze out future real releases.
+  const build = /^\d{1,6}$/.test(raw) && Number(raw) >= 1 && Number(raw) <= FEED.build ? raw : "unknown";
   const day = new Date().toISOString().slice(0, 10);
 
+  // Capped, atomic counting (Lua so the check-then-add can't race). Per-build
+  // counters and the builds set only grow for already-known builds or while the
+  // set is small, so a curl loop with unique v= values can never inflate Redis
+  // or blow up /api/stats' one-GET-per-member fan-out. Real builds arrive one
+  // per release; 64 is years of headroom. Totals and per-day always count.
+  const COUNT = `
+    redis.call('INCR', 'updates:total')
+    redis.call('INCR', 'updates:day:' .. ARGV[2])
+    redis.call('SADD', 'updates:days', ARGV[2])
+    if redis.call('SISMEMBER', 'updates:builds', ARGV[1]) == 1
+       or redis.call('SCARD', 'updates:builds') < 64 then
+      redis.call('INCR', 'updates:build:' .. ARGV[1])
+      redis.call('SADD', 'updates:builds', ARGV[1])
+    end
+    return 1`;
+
   // Best-effort counting; swallowed failures never touch the feed response.
-  await pipeline([
-    ["INCR", "updates:total"],
-    ["INCR", `updates:build:${build}`],
-    ["INCR", `updates:day:${day}`],
-    ["SADD", "updates:builds", build],
-    ["SADD", "updates:days", day],
-  ]);
+  await pipeline([["EVAL", COUNT, "0", build, day]]);
 
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Access-Control-Allow-Origin", "*");

@@ -65,6 +65,7 @@ final class UpdateChecker: ObservableObject {
     /// Fetch the feed and update published state. Best-effort and silent on any
     /// failure: a failed update check is never surfaced as an app problem.
     func check() async {
+        guard !isChecking else { return }   // single-flight: launch check vs. menu click
         isChecking = true
         defer { isChecking = false; lastChecked = Date() }
 

@@ -100,5 +100,14 @@ public struct MascotView: NSViewRepresentable {
             loaded = true
             flush()
         }
+
+        /// WebKit kills background content processes under memory pressure (routine
+        /// for a days-long always-on app). Without this, the long-lived pinned-notch
+        /// instance would render as a blank rectangle forever; reloading brings the
+        /// mascot back and `didFinish` re-applies the pending mood.
+        public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            loaded = false
+            webView.reload()
+        }
     }
 }

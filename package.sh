@@ -2,9 +2,10 @@
 # package.sh - build Claudometer.app and wrap it in a drag-to-Applications .dmg.
 #
 # Distribution is PHASED:
-#   * Default (no env vars): ad-hoc signed app inside the .dmg. Free. Users must
-#     right-click -> Open the first time (Gatekeeper shows an "unidentified
-#     developer" warning). This is the "share with friends now" path.
+#   * Default (no env vars): ad-hoc signed app inside the .dmg. Free. Gatekeeper
+#     blocks the first launch; on macOS 26 (right-click -> Open was removed) the
+#     unblock is System Settings -> Privacy & Security -> "Open Anyway". This is
+#     the "share with friends now" path.
 #   * Signed + notarized (set the env vars below): Developer-ID codesign with a
 #     hardened runtime, then notarize + staple the .dmg so it opens with a clean
 #     double-click anywhere. This is the one-step flip to "share with anyone".
@@ -39,7 +40,8 @@ if [[ -n "${SIGN_IDENTITY:-}" ]]; then
     codesign --verify --strict --verbose=2 "${APP}"
 else
     echo ">> NOTE: no SIGN_IDENTITY set -> ad-hoc signed (unsigned distribution)."
-    echo "   Users must right-click -> Open on first launch. Set SIGN_IDENTITY to notarize."
+    echo "   macOS 26 first-launch unblock: System Settings -> Privacy & Security ->"
+    echo "   'Open Anyway' (right-click -> Open no longer works). Set SIGN_IDENTITY to notarize."
 fi
 
 # 3. Assemble a drag-to-Applications staging folder and build the compressed .dmg.

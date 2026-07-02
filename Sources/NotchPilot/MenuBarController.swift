@@ -111,7 +111,10 @@ final class MenuBarController: NSObject {
         let renderer: ImageRenderer<AnyView> = badge > 0
             ? ImageRenderer(content: AnyView(StatusGlyph(state: state, badge: badge)))
             : ImageRenderer(content: AnyView(MascotGlyph(state: state, size: 18)))
-        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+        // The status item is drawn in EVERY screen's menu bar, so rasterize at the
+        // sharpest attached scale (NSScreen.main is just the key window's screen,
+        // which on a mixed-DPI setup can be the blurrier 1x one).
+        renderer.scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
         let image = renderer.nsImage ?? NSImage()
         image.isTemplate = false   // we want the coral color, not a template tint
         return image
@@ -178,25 +181,22 @@ final class MenuBarController: NSObject {
         }
 
         // Dismiss when the user clicks anywhere outside the panel. A global monitor
-        // only sees clicks in OTHER apps' windows, so a click inside never closes
-        // it; a click on our own status button is excluded so it can toggle.
+        // only sees clicks in OTHER apps' windows (never our own status button or
+        // panel), so any event here is by definition an outside click.
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                if let b = self.statusItem.button, let w = b.window {
-                    let bf = w.convertToScreen(b.convert(b.bounds, to: nil))
-                    if bf.contains(NSEvent.mouseLocation) { return }
-                }
-                self.closePanel()
-            }
+            MainActor.assumeIsolated { self?.closePanel() }
         }
 
         // Clicks in OUR OWN other windows (notably the pinned notch HUD) are local
-        // events the global monitor never sees, so dismiss on those too. Always
-        // return the event so panel-internal clicks (toggles/buttons) still work.
+        // events the global monitor never sees, so dismiss on those too. The status
+        // button's window is excluded: its mouseDown must NOT close the panel here,
+        // or the button's mouseUp action would find panel == nil and re-open it,
+        // making left-click-to-dismiss impossible. Always return the event so
+        // panel-internal clicks (toggles/buttons) still work.
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             MainActor.assumeIsolated {
-                if let self, let panel = self.panel, event.window !== panel {
+                if let self, let panel = self.panel, event.window !== panel,
+                   event.window !== self.statusItem.button?.window {
                     self.closePanel()
                 }
             }
@@ -304,6 +304,10 @@ final class MenuBarController: NSObject {
 
     private func showMenu(from button: NSStatusBarButton) {
         let menu = NSMenu()
+        // Manual enabling: with auto-enabling on, AppKit re-enables any item whose
+        // target responds to its action, silently overriding `isEnabled = false`
+        // (the "Checking for Updates…" guard below would be a no-op).
+        menu.autoenablesItems = false
 
         let pin = NSMenuItem(
             title: settings.pinNotch ? "Unpin from Notch" : "Pin to Notch",

@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<script>document.documentElement.classList.add('js');</script>
+<script>
+// The `js` class arms the CSS that hides .reveal sections pre-animation. The
+// un-hider lives in main.js, so this inline safety net must be independent of
+// it: if main.js never loads (ad-blocker, flaky network), reveal-fallback
+// un-hides everything after 3.5s instead of leaving the page below the hero
+// permanently invisible. Same 3.5s net main.js uses, so behavior matches.
+document.documentElement.classList.add('js');
+setTimeout(function () { document.documentElement.classList.add('reveal-fallback'); }, 3500);
+</script>
 <title>Claudometer: your Claude usage in the menu bar</title>
 <meta name="description" content="Claudometer is a tiny macOS menu-bar app that shows your own Claude Max usage as live session and weekly meters, fronted by a friendly sparkle. Free and open source." />
 <meta property="og:title" content="Claudometer: your Claude usage in the menu bar" />
@@ -116,7 +124,12 @@
   <div class="wrap reveal">
     <div class="fake-menubar">
       <span class="me"><svg class="spark"><use href="#spark"/></svg><span class="pct">16%</span></span>
-      <span class="sysicon">􀙇</span><span class="sysicon">􀊥</span><span class="sysicon">􀋨</span><span class="sysicon">Sun 28 Jun&nbsp; 11:24 PM</span>
+      <!-- Inline SVGs, not SF Symbols codepoints: those live in Apple's Private
+           Use Area and render as tofu boxes on Windows/Android/Linux. -->
+      <svg class="sysicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 9.5a14 14 0 0119 0"/><path d="M5.5 13a9.5 9.5 0 0113 0"/><path d="M8.6 16.4a5 5 0 016.8 0"/><circle cx="12" cy="19.6" r="1.3" fill="currentColor" stroke="none"/></svg>
+      <svg class="sysicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="7" rx="3.5"/><circle cx="6.5" cy="7.5" r="1.6" fill="currentColor" stroke="none"/><rect x="2.5" y="13" width="19" height="7" rx="3.5"/><circle cx="17.5" cy="16.5" r="1.6" fill="currentColor" stroke="none"/></svg>
+      <svg class="sysicon" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="1.5" y="7" width="21" height="10" rx="3"/><rect x="4" y="9.5" width="13" height="5" rx="1.5" fill="currentColor" stroke="none"/><path d="M25 10.5v3" stroke-width="2.5"/></svg>
+      <span class="sysicon">Sun 28 Jun&nbsp; 11:24 PM</span>
     </div>
     <p class="caption">It lives where you already look. No window to manage, no dock icon. Just a glance away, all day.</p>
   </div>

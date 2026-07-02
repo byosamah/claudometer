@@ -43,22 +43,36 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const [total, builds, days] = results(
-    await pipeline([
-      ["GET", "updates:total"],
-      ["SMEMBERS", "updates:builds"],
-      ["SMEMBERS", "updates:days"],
-    ])
-  );
+  // Unlike the feed (which must never block), this endpoint EXISTS to report
+  // accurate counts: a down/unauthorized store must be a loud 502, never a
+  // healthy-looking zero that reads as "no active installs".
+  const totals = await pipeline([
+    ["GET", "updates:total"],
+    ["SMEMBERS", "updates:builds"],
+    ["SMEMBERS", "updates:days"],
+  ]);
+  if (!totals) {
+    res.statusCode = 502;
+    res.end(JSON.stringify({ error: "KV store unreachable (check the Upstash URL/token env vars)." }));
+    return;
+  }
+  const [total, builds, days] = results(totals);
 
-  const buildList = builds || [];
-  const dayList = (days || []).sort();
-  const counts = results(
-    await pipeline([
-      ...buildList.map((b) => ["GET", `updates:build:${b}`]),
-      ...dayList.map((d) => ["GET", `updates:day:${d}`]),
-    ])
-  );
+  const buildList = (builds || []).slice(0, 200);
+  const dayList = (days || []).sort().slice(-730); // most recent two years
+  const cmds = [
+    ...buildList.map((b) => ["GET", `updates:build:${b}`]),
+    ...dayList.map((d) => ["GET", `updates:day:${d}`]),
+  ];
+  // An empty pipeline is an Upstash error; a brand-new store with no members
+  // yet is healthy, not a 502.
+  const counted = cmds.length ? await pipeline(cmds) : [];
+  if (!counted) {
+    res.statusCode = 502;
+    res.end(JSON.stringify({ error: "KV store unreachable mid-read (check the Upstash URL/token env vars)." }));
+    return;
+  }
+  const counts = results(counted);
 
   const byBuild = {};
   buildList.forEach((b, i) => (byBuild[b] = Number(counts[i]) || 0));

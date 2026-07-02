@@ -225,6 +225,10 @@ section { position: relative; z-index: 1; }
 .reveal { transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.16,1,0.3,1); }
 .js .reveal { opacity: 0; transform: translateY(24px); }
 .js .reveal.in { opacity: 1; transform: none; }
+/* Inline <head> safety net: if main.js itself never loads (ad-blocker, flaky
+   network), this class (added after 3.5s) un-hides everything the .js hider
+   armed, so the page below the hero can never stay permanently invisible. */
+.js.reveal-fallback .reveal { opacity: 1; transform: none; }
 
 /* ---- Menu-bar showcase band -------------------------------------------- */
 .showcase { text-align: center; }
@@ -240,6 +244,7 @@ section { position: relative; z-index: 1; }
 .fake-menubar .me .spark { width: 16px; height: 16px; }
 .fake-menubar .me .pct { color: var(--coral-bright); font-weight: 600; }
 .fake-menubar .sysicon { opacity: 0.5; }
+.fake-menubar svg.sysicon { width: 15px; height: 15px; flex: none; }
 .showcase .caption { margin-top: 22px; color: var(--paper-dim); max-width: 44ch; margin-inline: auto; }
 
 /* ---- Features grid ------------------------------------------------------ */

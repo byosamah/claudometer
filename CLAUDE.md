@@ -10,8 +10,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Claude **Max-plan** usage (session + weekly %), fronted by a "Claude sparkle"
 mascot. Clicking the menu bar item opens a **Liquid Glass panel** (macOS 26 /
 Tahoe) with the meters, reset times, and a one-tap Start Window button. When not
-connected it shows an **onboarding card** (`OnboardingView`) guiding install +
-sign-in. The original **notch HUD is now opt-in**: hidden by default, shown only
+connected it shows a **guided setup walkthrough** (`OnboardingView`): live
+per-step checkmarks (CLI installed / signed in / Keychain allowed via
+`UsageStore.tokenSeen`), a plain-words diagnosis of what's blocking the
+connection (`UsageStore.setupProblem`, fed by `OfflineReason`), and empty
+preview meters. It shows for `.needsAuth` always, and for EVERY failure state
+until the Mac has connected once (`hasConnectedBefore`, persisted in
+UserDefaults) — a new install must never sit on a bare "Connecting…". The original **notch HUD is now opt-in**: hidden by default, shown only
 when the user flips "Pin to notch" (the toggle lives in the panel footer and the
 right-click menu).
 
@@ -90,7 +95,12 @@ to a file (`/tmp/notchpilot-debug.log`) and `cat` it for deterministic per-poll 
   pre-enable a setting before launch with `defaults write com.osama.claudometer
   <key> -bool true` (the `@Published` subscriber applies it on launch).
   `CLAUDOMETER_SETTINGS_PATH=<tmpfile>` redirects the `~/.claude/settings.json`
-  hook-merge to a throwaway file (never mutate the real config in tests). Unit-test
+  hook-merge to a throwaway file (never mutate the real config in tests); it must
+  be set in the LAUNCH environment (ProcessInfo snapshots env at startup, so an
+  in-process `setenv` after launch is ignored). `CLAUDOMETER_KEYCHAIN_SERVICE=
+  <nonexistent-name>` points the token read at a missing Keychain item, which
+  walks the real first-run/signed-out path (the setup walkthrough) on a
+  signed-in machine. Unit-test
   pure-Foundation logic standalone: `swiftc Sources/NotchPilot/QuestionAlerts.swift
   main.swift -o /tmp/t` (top-level code is allowed ONLY in a file named `main.swift`).
   Use a `-D DEBUG_POLL` compile flag + a `/tmp` log for deterministic per-poll evidence.
