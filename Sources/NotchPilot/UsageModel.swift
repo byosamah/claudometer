@@ -49,10 +49,22 @@ struct UsageSnapshot: Sendable, Equatable {
     /// so a freshly opened window (e.g. 0.3%, which rounds to 0%) still counts
     /// as open. Do not infer "window open" from `sessionPercent > 0`.
     let sessionHasUsage: Bool
+    /// False when the plan has NO 5-hour limit (the 20x tier, now "Ultra"): the
+    /// server sends `five_hour: null` and lists no `kind == "session"` limit. The
+    /// surfaces then lead with the weekly number and hide the session meter and
+    /// the Start Window button. Read from the data, never from the plan name: the
+    /// credential still says "max" for these accounts.
+    let hasSessionLimit: Bool
     let weeklyPercent: Int
     let weeklyResetsAt: Date?
     let weeklySeverity: Severity
     let fetchedAt: Date
+
+    /// The number the compact surfaces (menu bar, collapsed notch) lead with:
+    /// the session % on a plan with a 5-hour limit, the weekly % otherwise.
+    var headlinePercent: Int { hasSessionLimit ? sessionPercent : weeklyPercent }
+    /// The severity that drives the accent color and the mascot mood.
+    var headlineSeverity: Severity { hasSessionLimit ? sessionSeverity : weeklySeverity }
 }
 
 // MARK: - Robust ISO-8601 date parsing
@@ -160,11 +172,21 @@ extension UsageSnapshot {
 
         let sessionUtil = raw.five_hour?.utilization ?? 0
 
+        // A plan with a 5-hour limit always lists a "session" limit, even with no
+        // window open (it reads 0%). Only when the server sends a `limits` list
+        // with no session entry AND no `five_hour` block is the plan weekly-only.
+        // No `limits` list at all (an older response shape) keeps the old
+        // behavior, so a 5x account never loses its session meter by accident.
+        let hasSessionLimit = raw.limits == nil
+            || raw.five_hour != nil
+            || limits.contains { $0.kind == "session" }
+
         return UsageSnapshot(
             sessionPercent: Self.clampPercent(raw.five_hour?.utilization),
             sessionResetsAt: ISODate.parse(raw.five_hour?.resets_at),
             sessionSeverity: sessionSeverity,
             sessionHasUsage: sessionUtil.isFinite && sessionUtil > 0,
+            hasSessionLimit: hasSessionLimit,
             weeklyPercent: Self.clampPercent(raw.seven_day?.utilization),
             weeklyResetsAt: ISODate.parse(raw.seven_day?.resets_at),
             weeklySeverity: weeklySeverity,

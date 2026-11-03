@@ -83,7 +83,7 @@ final class MenuBarController: NSObject {
         // Other states (offline / signed-out) show a dimmed glyph and no number.
         if style != .glyphOnly, case .ok(let snap) = store.state {
             let leading = style == .percentOnly ? "" : " "
-            button.attributedTitle = Self.title("\(leading)\(snap.sessionPercent)%",
+            button.attributedTitle = Self.title("\(leading)\(snap.headlinePercent)%",
                                                 color: store.accentColor)
         } else if style == .percentOnly {
             // No glyph in this style, so never blank the ONLY affordance: a nil

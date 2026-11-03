@@ -55,9 +55,13 @@ struct NotchRootView: View {
         if expanded {
             VStack(alignment: .leading, spacing: 10) {
                 if case .ok = store.state {
-                    notchMeter("Session", store.sessionPercent, store.sessionFraction, store.accentColor)
-                    notchMeter("Weekly", store.weeklyPercent, store.weeklyFraction, .secondary)
-                    actionRow
+                    // Weekly-only plan: weekly meter alone, no Start button.
+                    if store.hasSessionLimit {
+                        notchMeter("Session", store.sessionPercent, store.sessionFraction, store.accentColor)
+                    }
+                    notchMeter("Weekly", store.weeklyPercent, store.weeklyFraction,
+                               store.hasSessionLimit ? .secondary : store.accentColor)
+                    if store.hasSessionLimit { actionRow }
                 } else {
                     Text(store.statusText)
                         .font(.system(size: 12, weight: .medium, design: .rounded))

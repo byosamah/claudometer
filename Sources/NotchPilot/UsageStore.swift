@@ -226,9 +226,16 @@ final class UsageStore: ObservableObject {
             return .dormant   // just waiting out the limit, not broken
         case .ok(let snap):
             // The official `severity` field is the primary driver; a high-percent
-            // backstop guarantees a visible warning even if severity lags.
-            if snap.sessionSeverity == .warning || snap.sessionSeverity == .critical || snap.sessionPercent >= 85 {
+            // backstop guarantees a visible warning even if severity lags. On a
+            // weekly-only plan both come from the weekly limit.
+            if snap.headlineSeverity == .warning || snap.headlineSeverity == .critical || snap.headlinePercent >= 85 {
                 return .frantic
+            }
+            // Weekly-only plan: there is no window to open, so the mascot is
+            // alive whenever the week has usage.
+            guard snap.hasSessionLimit else {
+                if snap.weeklyPercent == 0 { return .dormant }
+                return .playing(intensity: min(1.0, Double(snap.weeklyPercent) / 100.0))
             }
             // Use the raw-usage flag, not the rounded percent: a freshly opened
             // window can sit below 0.5% (rounds to 0) yet is genuinely open, so
@@ -250,6 +257,10 @@ final class UsageStore: ObservableObject {
     /// below 0.5% and round to 0%. And NOT the API's `is_active` flag, which means
     /// "currently the binding limit," not "window open."
     var hasOpenWindow: Bool { snapshot?.sessionHasUsage ?? false }
+
+    /// False on a weekly-only plan (no 5-hour limit). The surfaces then hide the
+    /// session meter and the Start Window button. Defaults to true with no data.
+    var hasSessionLimit: Bool { snapshot?.hasSessionLimit ?? true }
 
     /// Show the guided "connect your Claude" walkthrough. Always for a missing or
     /// revoked credential, and for EVERY failure state while this Mac has never
@@ -319,7 +330,7 @@ final class UsageStore: ObservableObject {
     var collapsedLabel: String {
         if !loadedOnce { return "…" }   // first poll still in flight
         switch state {
-        case .ok(let s):            return "\(s.sessionPercent)%"
+        case .ok(let s):            return "\(s.headlinePercent)%"
         case .needsAuth, .noBinary: return "sign in"
         case .offline:              return lastGood == nil ? "…" : "offline"
         case .rateLimited:          return "…"
@@ -377,8 +388,8 @@ final class UsageStore: ObservableObject {
     var accentColor: Color {
         switch state {
         case .ok(let s):
-            if s.sessionSeverity == .critical || s.sessionPercent >= 85 { return .severityDanger }
-            if s.sessionSeverity == .warning { return .severityWarn }
+            if s.headlineSeverity == .critical || s.headlinePercent >= 85 { return .severityDanger }
+            if s.headlineSeverity == .warning { return .severityWarn }
             return .severityCalm
         case .needsAuth, .noBinary, .offline, .rateLimited:
             return .secondary

@@ -105,7 +105,9 @@ struct UsagePanelView: View {
     }
 
     private var subtitle: String {
-        if case .ok = store.state { return "Max plan usage" }
+        if case .ok = store.state {
+            return store.hasSessionLimit ? "Max plan usage" : "Weekly limit only"
+        }
         return store.statusText
     }
 
@@ -114,19 +116,23 @@ struct UsagePanelView: View {
     @ViewBuilder
     private var content: some View {
         if case .ok = store.state {
+            // A weekly-only plan (no 5-hour limit) shows the weekly meter alone,
+            // in the accent color, and no Start Window button (no window to start).
             VStack(alignment: .leading, spacing: 14) {
-                meter(title: "Session",
-                      percent: store.sessionPercent,
-                      fraction: store.sessionFraction,
-                      reset: store.sessionResetText,
-                      color: store.accentColor)
+                if store.hasSessionLimit {
+                    meter(title: "Session",
+                          percent: store.sessionPercent,
+                          fraction: store.sessionFraction,
+                          reset: store.sessionResetText,
+                          color: store.accentColor)
+                }
                 meter(title: "Weekly",
                       percent: store.weeklyPercent,
                       fraction: store.weeklyFraction,
                       reset: store.weeklyResetText,
-                      color: .secondary)
+                      color: store.hasSessionLimit ? .secondary : store.accentColor)
             }
-            actionArea
+            if store.hasSessionLimit { actionArea }
         } else if store.needsWalkthrough {
             OnboardingView()
         } else {

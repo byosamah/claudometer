@@ -2,7 +2,7 @@ import SwiftUI
 
 /// What the menu bar status item renders.
 enum MenuBarStyle: String, CaseIterable, Sendable {
-    case glyphAndPercent   // mood-tinted mascot glyph + session %  (default)
+    case glyphAndPercent   // mood-tinted mascot glyph + session % (weekly % on a weekly-only plan)  (default)
     case glyphOnly         // just the glyph
     case percentOnly       // just the % text
 }
