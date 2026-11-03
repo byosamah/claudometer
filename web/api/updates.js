@@ -10,16 +10,13 @@
 // Single source of truth for the published build. BUMP THIS ON EVERY RELEASE
 // (this replaced the old static web/updates.json; see docs/RELEASING.md).
 const FEED = {
-  version: "1.3",
-  build: 3,
+  version: "1.4",
+  build: 4,
   downloadURL: "https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg",
   notes:
-    "New: a guided setup walkthrough. If Claudometer isn't connected yet, the panel " +
-    "now walks you through the three steps (install Claude Code, sign in, allow " +
-    "Keychain access) with live checkmarks and tells you exactly what's blocking the " +
-    "connection instead of a stuck \"Connecting\". Also: left-clicking the menu bar " +
-    "icon now closes the panel, your ~/.claude/settings.json can never be clobbered " +
-    "by the alerts feature, plus 15 more reliability fixes across the app.",
+    "Ultra plans now show your real number. Ultra has no 5-hour limit, only a weekly " +
+    "one, so the menu bar used to sit on 0%. Claudometer now shows your weekly % " +
+    "instead, and the panel shows only the weekly meter. Max plans look the same as before.",
   minimumSystemVersion: "26.0",
 };
 
