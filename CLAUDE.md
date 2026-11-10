@@ -260,6 +260,13 @@ TokenProvider ─> UsageClient ─> UsageService ─> UsageStore ─┬─> Menu
   dollars**.
 - **`severity` drives the mascot mood** (`normal` / escalated). Trust the field;
   a `sessionPercent >= 85` backstop exists only as a safety net.
+- **A model can have its own weekly limit** (for example Fable). The server lists
+  it in `limits` as `kind == "weekly_scoped"` with the name in
+  `scope.model.display_name`, its own `percent`, `severity` and `resets_at`.
+  `UsageSnapshot.scopedLimits` holds one entry for each, and the panel and the
+  notch draw one "<name> weekly" meter for each. The name comes from the server,
+  so a new model needs no app update. `RawScope` never throws on decode: an
+  unknown `scope` shape must not break the whole usage response.
 - **`is_active` does NOT mean "5-hour window is open."** It means "currently the
   binding limit." Detect an open window via `sessionHasUsage` (any usage > 0), NOT
   the rounded percent. The Start button only shows when no window is open, and it's

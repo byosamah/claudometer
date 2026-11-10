@@ -351,6 +351,22 @@ final class UsageStore: ObservableObject {
         return "Resets \(Self.weekday(d))"
     }
 
+    /// The model-scoped weekly limits (for example "Fable"), one meter each.
+    var scopedLimits: [ScopedLimit] { snapshot?.scopedLimits ?? [] }
+
+    static func resetText(for limit: ScopedLimit) -> String {
+        guard let d = limit.resetsAt else { return "" }
+        return "Resets \(weekday(d))"
+    }
+
+    /// A scoped meter stays neutral until its own limit gets close. It then
+    /// uses the same amber and red as the main meters.
+    static func color(for limit: ScopedLimit) -> Color {
+        if limit.severity == .critical || limit.percent >= 85 { return .severityDanger }
+        if limit.severity == .warning { return .severityWarn }
+        return .secondary
+    }
+
     var sessionLine: String {
         guard let s = snapshot else { return statusText }
         return "Session \(s.sessionPercent)% · resets \(Self.countdown(s.sessionResetsAt))"

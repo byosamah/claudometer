@@ -97,7 +97,14 @@ final class NotchWindowController: NSWindowController {
 
     // Pill (collapsed) vs dropped-down panel (expanded). Tune to taste.
     private let collapsedSize = NSSize(width: 124, height: 30)
-    private let expandedSize  = NSSize(width: 360, height: 190)
+    /// 190 fits two meters and the Start row. Each meter past that adds 30. A
+    /// weekly-only plan has no Session meter and no Start row, so its first
+    /// scoped meter fits with no extra height.
+    private var expandedSize: NSSize {
+        let scoped = store.scopedLimits.count
+        let extraMeters = store.hasSessionLimit ? scoped : max(0, scoped - 1)
+        return NSSize(width: 360, height: 190 + CGFloat(extraMeters) * 30)
+    }
 
     // MARK: Init
     init(store: UsageStore) {

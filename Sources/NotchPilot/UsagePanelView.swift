@@ -131,6 +131,13 @@ struct UsagePanelView: View {
                       fraction: store.weeklyFraction,
                       reset: store.weeklyResetText,
                       color: store.hasSessionLimit ? .secondary : store.accentColor)
+                ForEach(store.scopedLimits) { limit in
+                    meter(title: "\(limit.name) weekly",
+                          percent: limit.percent,
+                          fraction: limit.fraction,
+                          reset: UsageStore.resetText(for: limit),
+                          color: UsageStore.color(for: limit))
+                }
             }
             if store.hasSessionLimit { actionArea }
         } else if store.needsWalkthrough {

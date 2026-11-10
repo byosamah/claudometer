@@ -61,6 +61,10 @@ struct NotchRootView: View {
                     }
                     notchMeter("Weekly", store.weeklyPercent, store.weeklyFraction,
                                store.hasSessionLimit ? .secondary : store.accentColor)
+                    ForEach(store.scopedLimits) { limit in
+                        notchMeter("\(limit.name) weekly", limit.percent, limit.fraction,
+                                   UsageStore.color(for: limit))
+                    }
                     if store.hasSessionLimit { actionRow }
                 } else {
                     Text(store.statusText)

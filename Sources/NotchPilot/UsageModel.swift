@@ -58,6 +58,10 @@ struct UsageSnapshot: Sendable, Equatable {
     let weeklyPercent: Int
     let weeklyResetsAt: Date?
     let weeklySeverity: Severity
+    /// Extra weekly limits that cover one model only (for example "Fable"). The
+    /// server lists each one as a `kind == "weekly_scoped"` limit with its own
+    /// percent and reset time. Empty on a plan that has none.
+    let scopedLimits: [ScopedLimit]
     let fetchedAt: Date
 
     /// The number the compact surfaces (menu bar, collapsed notch) lead with:
@@ -65,6 +69,18 @@ struct UsageSnapshot: Sendable, Equatable {
     var headlinePercent: Int { hasSessionLimit ? sessionPercent : weeklyPercent }
     /// The severity that drives the accent color and the mascot mood.
     var headlineSeverity: Severity { hasSessionLimit ? sessionSeverity : weeklySeverity }
+}
+
+/// One weekly limit that covers a single model. The name comes from the server
+/// (`scope.model.display_name`), so a new model shows with no app update.
+struct ScopedLimit: Sendable, Equatable, Identifiable {
+    let name: String
+    let percent: Int
+    let resetsAt: Date?
+    let severity: Severity
+
+    var id: String { name }
+    var fraction: Double { Double(percent) / 100 }
 }
 
 // MARK: - Robust ISO-8601 date parsing
@@ -152,7 +168,23 @@ struct RawLimit: Decodable {
     let severity: String?
     let resets_at: String?
     let is_active: Bool?
-    // `scope` is intentionally omitted; unknown keys are ignored by Codable.
+    let scope: RawScope?
+}
+
+/// The `scope` of a limit. Only the model name is read. The decode never throws:
+/// a scope with a new or different shape gives a nil name, and the rest of the
+/// usage response still decodes.
+struct RawScope: Decodable {
+    let modelName: String?
+
+    private enum Keys: String, CodingKey { case model }
+    private struct Model: Decodable { let display_name: String? }
+
+    init(from decoder: Decoder) throws {
+        let container = try? decoder.container(keyedBy: Keys.self)
+        let model = try? container?.decodeIfPresent(Model.self, forKey: .model)
+        modelName = model?.display_name
+    }
 }
 
 struct RawExtraUsage: Decodable {
@@ -181,6 +213,21 @@ extension UsageSnapshot {
             || raw.five_hour != nil
             || limits.contains { $0.kind == "session" }
 
+        // One meter for each model-scoped weekly limit that has a name. The
+        // percent comes from the server as an Int, so clamp it only.
+        var seenNames = Set<String>()
+        let scopedLimits: [ScopedLimit] = limits.compactMap { limit in
+            guard limit.kind == "weekly_scoped",
+                  let name = limit.scope?.modelName, !name.isEmpty,
+                  seenNames.insert(name).inserted else { return nil }
+            return ScopedLimit(
+                name: name,
+                percent: min(max(limit.percent ?? 0, 0), 100),
+                resetsAt: ISODate.parse(limit.resets_at),
+                severity: Severity(apiValue: limit.severity)
+            )
+        }
+
         return UsageSnapshot(
             sessionPercent: Self.clampPercent(raw.five_hour?.utilization),
             sessionResetsAt: ISODate.parse(raw.five_hour?.resets_at),
@@ -190,6 +237,7 @@ extension UsageSnapshot {
             weeklyPercent: Self.clampPercent(raw.seven_day?.utilization),
             weeklyResetsAt: ISODate.parse(raw.seven_day?.resets_at),
             weeklySeverity: weeklySeverity,
+            scopedLimits: scopedLimits,
             fetchedAt: fetchedAt
         )
     }
