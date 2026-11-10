@@ -10,13 +10,13 @@
 // Single source of truth for the published build. BUMP THIS ON EVERY RELEASE
 // (this replaced the old static web/updates.json; see docs/RELEASING.md).
 const FEED = {
-  version: "1.4",
-  build: 4,
+  version: "1.5",
+  build: 5,
   downloadURL: "https://github.com/byosamah/claudometer/releases/latest/download/Claudometer.dmg",
   notes:
-    "Ultra plans now show your real number. Ultra has no 5-hour limit, only a weekly " +
-    "one, so the menu bar used to sit on 0%. Claudometer now shows your weekly % " +
-    "instead, and the panel shows only the weekly meter. Max plans look the same as before.",
+    "Fable has its own weekly limit, and Claudometer now shows it. The panel and the " +
+    "notch get a Fable weekly meter under the Weekly meter, with its own reset time. " +
+    "Plans with no Fable limit look the same as before.",
   minimumSystemVersion: "26.0",
 };
 
